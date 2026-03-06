@@ -7,31 +7,100 @@ from scipy.linalg import orthogonal_procrustes
 from pdb import set_trace
 
 class MCPLS():
-    def __init__(self, data, design, between=None, within=None, participant=None):
+    def __init__(self, subtract=None):
+        self.subtract = subtract
+    def set_up_indicators(self, between=None, within=None, participant=None):
+        # Assign none if absent, otherwise assign integer labels
+        if between is None:
+            self.between_ = None
+        else:
+            _, self.between_ = np.unique(between, return_inverse=True)
+        if within is None:
+            self.within_ = None
+            self.participant_ = None
+        else:
+            _, self.within_ = np.unique(within, return_inverse=True)
+            _, self.participant_ = np.unique(participant, return_inverse=True)
+        # Sort by between, then within, then participant
+        if self.within_ is not None:
+            sort_key = (self.within_, self.participant_)
+            if self.between_ is not None:
+                sort_key += (self.between_,)
+            sort_idx = np.lexsort(sort_key)
+            self.within_ = self.within_[sort_idx]
+            self.participant_ = self.participant_[sort_idx]
+        else:
+            sort_idx = np.argsort(self.between_)
+        if self.between_ is not None:
+            self.between_ = self.between_[sort_idx]
+        self.X_ = self.X_[sort_idx]
+    def fit(self, X, between=None, within=None, participant=None):
+        if participant is None and within is not None:
+            raise ValueError('Participants must be differentiated if there is a within-participants factor')
+        self.X_ = X
+        self.set_up_indicators(between=between, within=within, participant=participant)
         # TODO: make sure at least one of within and between is not none
         # TODO: make sure participant is defined if within is defined
         # TODO: enfore categoricity
         # TODO: multiple within and between factors?
         # TODO: check whether there are multiple levels of within and between factors
-        self.data = data
-        self.design = design
-        self.within = within
-        self.between = between
-        self.participant = participant
-        # Default to a dummy participant indicator---even if there is only a between condition, still need a way to differentiate between observations
-        if self.participant is None:
-            self.design['participant'] = self.design.index
-            self.participant = 'participant'
+        # TODO: check whether subtract option is possible given availability of factors
+        # TODO: make sure lengths of inputs are all the same
         # Get stratifying variable
-        strat = _get_stratifier(self.design, self.between, self.within)
-        self.labels = strat.unique()
         # TODO: keep track of labels
         # SVD decomposition
-        u, s, v = _mc_svd(self.data, strat)
-        self.design_sals = u
-        self.singular_vals = s
-        self.brain_sals = v.T
+        u, s, v = _mc_pls(
+            X=self.X_,
+            between=self.between_,
+            within=self.within_,
+            participant=self.participant_,
+            subtract=self.subtract,
+            compute_uv=True)
+        self.design_sals_ = u
+        self.singular_vals_ = s
+        self.brain_sals_ = v.T
+        return self
     def permute(self, n_perm=5000):
+        perm_singvals = []
+        # Get indicators to permute
+        if self.within_ is not None:
+            # If there is a within-participants condition, we need to keep
+            # track of it as well as participant identity
+            cols_to_permute = (self.within_, self.participant_)
+            if self.between_ is not None:
+                cols_to_permute += (self.between_,)
+            to_permute = np.column_stack(cols_to_permute)
+        else:
+            # Otherwise we only need to keep track of between-participants
+            # condition
+            to_permute = self.between_
+        for perm_n in tqdm(range(n_perm)):
+            # Permute
+            permuted = _get_permutation(to_permute, between=self.between_, participant=self.participant_)
+            # Unpack permuted indicators
+            if self.within_ is not None:
+                within, participant = permuted[:, :2].T
+                if self.between_ is not None:
+                    between = permuted[:, 2]
+                else:
+                    between = None
+            else:
+                between = permuted
+                within, participant = None, None
+            # Run decomposition
+            singval = _mc_pls(
+                X=self.X_,
+                between=between,
+                within=within,
+                participant=participant,
+                subtract=self.subtract,
+                compute_uv=False)
+            perm_singvals.append(singval)
+        perm_singvals = np.stack(perm_singvals)
+        pvals = (np.sum(perm_singvals >= self.singular_vals_, axis=0) + 1) / (n_perm + 1)
+        self.pvals = pvals
+        return perm_singvals
+    def permute_old(self, n_perm=5000):
         perm_singvals = []
         for perm_n in tqdm(range(n_perm)):
             permuted = _get_permuted_design(
@@ -129,6 +198,25 @@ def _sort_tabular():
     # TODO: tables should be sorted by group, then participant, then condition
     pass
 
+def _get_permutation(to_permute, between=None, participant=None):
+    if participant is None:
+        # No between-participant conditions---just shuffle all rows
+        perm_idx = np.random.permutation(to_permute.shape[0])
+    else:
+        if between is not None:
+            # Shuffle participants
+            n_participants = participant.max() + 1
+            participant_permutation = np.random.permutation(n_participants)
+            # This next line works because "participant" is both an array of
+            # integer labels and an integer index that could be used to index
+            # an array of unique participant IDs
+            participant = participant_permutation[participant]
+        # Shuffle within participants
+        perm_idx = np.lexsort((np.random.rand(len(participant)), participant))
+    # Apply shuffle
+    permuted = to_permute[perm_idx]
+    return permuted
+
 def _get_permuted_design(design, participant, between=None, within=None):
     permuted = design.copy()
     if within is None:
@@ -174,13 +262,39 @@ def _get_bootstrap_sample(dataframe, ptptwise_subtables, groupwise_ptpts):
     resample = pd.concat([ptptwise_subtables[ptpt] for ptpt in resampled_participants], ignore_index=True)
     return resample
 
-def _mc_svd(data, strat, compute_uv=True):
+def _mc_svd_old(data, design, within, between, compute_uv=True):
+    strat = _get_stratifier(design, between, within)
     # Stack level-wise means
     level_means = np.stack([data[strat == level].mean(axis=0) for level in np.unique(strat)])
     # Mean center columns and decompose
     mean_centred = level_means - level_means.mean(axis=0)
     return np.linalg.svd(mean_centred, full_matrices=False, compute_uv=compute_uv)
-        
+  
+def _mc_pls(X, between, within, participant, subtract, compute_uv=True):
+    if subtract is not None:
+        # Pre-subtract between- or within-wise means if applicable
+        if subtract == 'between':
+            group_idx = between
+        elif subtract == 'within':
+            group_idx = within
+        rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
+        X = X - rowwise_group_means
+        # X -= rowwise_group_means
+    # Compute group-wise means
+    if between is not None and within is not None:
+        stratifier = np.column_stack((between, within))
+        _, stratifier = np.unique(stratifier, axis=0, return_inverse=True)
+    elif between is not None:
+        stratifier = between
+    else:
+        stratifier = within
+    groupwise_means = _get_groupwise_means(X, stratifier)
+    # Mean centre
+    mean_centred = groupwise_means - groupwise_means.mean(axis=0)
+    # Decompose
+    decomp = np.linalg.svd(mean_centred, full_matrices=False, compute_uv=compute_uv)
+    return decomp
+      
 def _beh_svd(data, cov, strat, compute_uv=True):
     # Get level-wise corelation matrices
     submatrices = []
@@ -287,3 +401,16 @@ def _get_permutation_idx(participant, within=None, n_perm=5000):
     
     return perm_idxs
 """
+
+def _get_groupwise_means(X, group_idx):
+    n_groups = group_idx.max() + 1
+    # Sums per group
+    groupwise_sums = np.zeros((n_groups, X.shape[1]))
+    np.add.at(groupwise_sums, group_idx, X)
+    # Counte per group
+    groupwise_counts = np.zeros(n_groups)
+    np.add.at(groupwise_counts, group_idx, 1)
+    # Means per group
+    groupwise_means = groupwise_sums / groupwise_counts[:, None]    
+    return groupwise_means
+
