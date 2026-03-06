@@ -6,6 +6,8 @@ from matplotlib import pyplot as plt
 from pdb import set_trace
 
 def design_barplot(y, labels=None, ci=None, ax=None, ylabel=None, facecolor='gray', edgecolor='black', **kwargs):
+    # y must be (n,)
+    # ci must be (2, n)
     # TODO: validate input shape
     if labels is None:
         labels = [str(x) for x in range(len(y))]
