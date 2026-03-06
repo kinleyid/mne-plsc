@@ -42,23 +42,18 @@ class MCPLS():
         if n_perm < 1:
             raise ValueError('n_perm must be a positive integer')
         perm_singvals = []
-        # TODO: I think you could create the between-within stratifiers here instead of every time we call _mc_pls for speed
+        # TODO: I think you could create the between-within stratifiers here instead of every time we call _get_mean_centred for speed
         # Get indicators to permute
-        if self.within_ is not None:
-            # If there is a within-participants condition, we need to keep
-            # track of it as well as participant identity
-            cols_to_permute = (self.within_, self.participant_)
-            if self.between_ is not None:
-                cols_to_permute += (self.between_,)
-            to_permute = np.column_stack(cols_to_permute)
-        else:
-            # Otherwise we only need to keep track of between-participants
-            # condition
-            to_permute = self.between_
+        to_permute = _get_matrix_to_permute(
+            between=self.between_,
+            within=self.within_,
+            participant=self.participant_)
         print('Permuting...')
         for perm_n in tqdm(range(n_perm)):
             # Permute
-            permuted = _get_permutation(to_permute, between=self.between_, participant=self.participant_)
+            perm_idx = _get_permutation(len(self.X_), between=self.between_, participant=self.participant_)
+            if self.within_ is not None:
+                
             # Unpack permuted indicators
             if self.within_ is not None:
                 within, participant = permuted[:, :2].T
@@ -91,7 +86,7 @@ class MCPLS():
         self.confint_level_ = confint_level
         # Get variables needed for bootstrapping
         # bootstrap_vars = _setup_for_bootstrapping(self.X_, self.design, self.participant, self.between)
-        resample_vars = _set_up_for_resampling(
+        resample_vars = _get_vars_for_resampling(
             n_rows=len(self.X_),
             between=self.between_,
             within=self.within_,
@@ -174,160 +169,53 @@ class MCPLS():
         if self.between_ is not None:
             self.between_ = self.between_[sort_idx]
         self.X_ = self.X_[sort_idx]
-   
-def _get_stratifier(design, between, within):
-    cols = [col for col in [between, within] if col is not None]
-    if len(cols) == 0:
-        # Nothing to stratify on (allowed for behavioural PLS)
-        # Return dummy stratifier containing only one value
-        """
-        dummy = pd.DataFrame({'stratifier': [0]*len(design)})
-        stratifier = pd.MultiIndex.from_frame(dummy)
-        """
-        stratifier = pd.Series(0, index=design.index)
-    else:
-        """
-        stratifier = pd.MultiIndex.from_frame(design[cols])
-        """
-        stratifier = design[cols].apply(tuple, axis=1)
-    return stratifier
-
-def _get_permutation(to_permute, between=None, participant=None):
-    if participant is None:
-        # No between-participant conditions---just shuffle all rows
-        perm_idx = np.random.permutation(to_permute.shape[0])
-    else:
-        if between is not None:
-            # Shuffle participants
-            n_participants = participant.max() + 1
-            participant_permutation = np.random.permutation(n_participants)
-            # This next line works because "participant" is both an array of
-            # integer labels and an integer index that could be used to index
-            # an array of unique participant IDs
-            participant = participant_permutation[participant]
-        # Shuffle within participants
-        perm_idx = np.lexsort((np.random.rand(len(participant)), participant))
-    # Apply shuffle
-    permuted = to_permute[perm_idx]
-    return permuted
-
-def _setup_for_bootstrapping(data, design, participant, between=None):
-    # Create table containing both design info and data
-    design_with_data = design.copy().assign(data=list(data))
-    # Get sub-tables corresponding to (possibly one, possibly multiple) observations per participant
-    ptptwise_subtables = dict(tuple(design_with_data.groupby(participant)))
-    if between:
-        # Which participants are in which between conditions?
-        groupwise_ptpts = design.groupby(between)[participant].apply(np.unique)
-    else:
-        # Group by a dummy variable that's the same for everyone
-        # Just so we can use the same code later whether or not there's a between-participants condition
-        groupwise_ptpts = design.groupby(lambda _: 0)[participant].apply(np.unique)
-    return design_with_data, ptptwise_subtables, groupwise_ptpts
-
-def _get_bootstrap_sample(dataframe, ptptwise_subtables, groupwise_ptpts):
-    # Sample subjects within groups
-    groupwise_resampled = groupwise_ptpts.apply(lambda x: np.random.choice(x, x.size, replace=True))
-    resampled_participants = np.concatenate(groupwise_resampled.values)
-    # Get data for sampled participants, including within-participant conditions 
-    resample = pd.concat([ptptwise_subtables[ptpt] for ptpt in resampled_participants], ignore_index=True)
-    return resample
-
-def _get_mean_centred(X, between, within, participant, subtract):
-    if subtract is not None:
-        # Pre-subtract between- or within-wise means if applicable
-        if subtract == 'between':
-            group_idx = between
-        elif subtract == 'within':
-            group_idx = within
-        rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
-        X = X - rowwise_group_means
-        # X -= rowwise_group_means
-    # Compute group-wise means
-    if between is not None and within is not None:
-        stratifier = np.column_stack((between, within))
-        _, stratifier = np.unique(stratifier, axis=0, return_inverse=True) # Would be nice to do this earlier 
-    elif between is not None:
-        stratifier = between
-    else:
-        stratifier = within
-    groupwise_means = _get_groupwise_means(X, stratifier)
-    # Mean centre
-    mean_centred = groupwise_means - groupwise_means.mean(axis=0)
-    return mean_centred
-
-def _mc_pls(X, between, within, participant, subtract, compute_uv=True):
-    if subtract is not None:
-        # Pre-subtract between- or within-wise means if applicable
-        if subtract == 'between':
-            group_idx = between
-        elif subtract == 'within':
-            group_idx = within
-        rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
-        X = X - rowwise_group_means
-        # X -= rowwise_group_means
-    # Compute group-wise means
-    if between is not None and within is not None:
-        stratifier = np.column_stack((between, within))
-        _, stratifier = np.unique(stratifier, axis=0, return_inverse=True) # Would be nice to do this earlier 
-    elif between is not None:
-        stratifier = between
-    else:
-        stratifier = within
-    groupwise_means = _get_groupwise_means(X, stratifier)
-    # Mean centre
-    mean_centred = groupwise_means - groupwise_means.mean(axis=0)
-    # Decompose
-    decomp = np.linalg.svd(mean_centred, full_matrices=False, compute_uv=compute_uv)
-    return decomp
-      
-def _beh_svd(data, cov, strat, compute_uv=True):
-    # Get level-wise corelation matrices
-    submatrices = []
-    for level in np.unique(strat):
-        idx = strat == level
-        # Collect correlation matrix for this level of the stratifier
-        submatrix = _corr(cov[idx], data[idx])
-        submatrices.append(submatrix)
-    # Stack and decompose
-    R = np.concat(submatrices) # TODO: will this work with just one submatrix?
-    return np.linalg.svd(R, full_matrices=False, compute_uv=compute_uv)
-
-def _corr(X, Y):
-    # Center
-    Xc = X - X.mean(axis=0)
-    Yc = Y - Y.mean(axis=0)
-    # Covariance
-    cov = Xc.T @ Yc / (X.shape[0] - 1)
-    # Normalize
-    stdX = X.std(axis=0, ddof=1)
-    stdY = Y.std(axis=0, ddof=1)
-    return cov / np.outer(stdX, stdY)
-
+  
 class BehPLS():
     def __init__(self):
+        # No initialization variables
         pass
     def fit(self, X, covariates, within=None, between=None, participant=None):
+        # Store data
         self.X_ = X
         self.covariates_ = covariates
-        self.within = within
-        self.between = between
-        self.participant = participant # TODO: dummy participant code
-        strat = _get_stratifier(self.design, self.between, self.within)
-        self.labels = strat.unique()
-        u, s, v = _beh_svd(data, self.design[self.covariates].to_numpy(), strat)
-        self.design_sals = u
-        self.singular_vals = s
-        self.brain_sals = v.T
+        _set_up_indicators(self, between=between, within=within, participant=participant)
+        stratifier = _get_stratifier(len(self.X_), self.between_, self.within_, self.participant_)
+        R = _get_stacked_cormats(self.X_, self.covariates_, stratifier)
+        u, s, v = np.linalg.svd(R, full_matrices=False, compute_uv=True)
+        self.design_sals_ = u
+        self.singular_vals_ = s
+        self.brain_sals_ = v.T
     def permute(self, n_perm=5000):
         perm_singvals = []
         print('Permuting...')
+        to_permute = _get_matrix_to_permute(
+            between=self.between_,
+            within=self.within_,
+            participant=self.participant_,
+            covariates=self.covariates_)
         for perm_n in tqdm(range(n_perm)):
-            permuted = _get_permuted_design(
-                design=self.design,
-                between=self.between,
-                within=self.within,
-                participant=self.participant)
+            # Permute
+            permuted = _get_permutation(to_permute, between=self.between_, participant=self.participant_)
+            # Unpack permuted indicators
+            if self.within_ is not None:
+                within, participant = permuted[:, :2].T
+                if self.between_ is not None:
+                    between = permuted[:, 2]
+                    covariates = permuted[:, 3:]
+                else:
+                    between = None
+                    covariates = permuted[:, 2:]
+            else:
+                between = permuted[:, 0]
+                within, participant = None, None
+                covariates = permuted[:, 1:]
+            
+            
+            
+            permuted = _get_permutation(
+                to_permute,
+                between=self.between_,
+                participant=self.participant_)
             strat = _get_stratifier(permuted, self.between, self.within)
             cov = permuted[self.covariates].to_numpy()
             perm_singvals.append(_beh_svd(self.data, cov, strat, compute_uv=False))
@@ -360,6 +248,96 @@ class BehPLS():
         # Compute confidence intervals for design saliences
         self.bootstrap_ci = np.quantile(np.stack(design_resampled), [confint_level, 1 - confint_level], axis=0)
 
+def _get_permutation(n_obs, between=None, participant=None):
+    if participant is None:
+        # No between-participant conditions---just shuffle all rows
+        perm_idx = np.random.permutation(n_obs)
+    else:
+        if between is not None:
+            # Shuffle participants
+            n_participants = participant.max() + 1
+            participant_permutation = np.random.permutation(n_participants)
+            # This next line works because "participant" is both an array of
+            # integer labels and an integer index that could be used to index
+            # an array of unique participant IDs
+            participant = participant_permutation[participant]
+        # Shuffle within participants
+        perm_idx = np.lexsort((np.random.rand(len(participant)), participant))
+    return perm_idx
+
+def _setup_for_bootstrapping(data, design, participant, between=None):
+    # Create table containing both design info and data
+    design_with_data = design.copy().assign(data=list(data))
+    # Get sub-tables corresponding to (possibly one, possibly multiple) observations per participant
+    ptptwise_subtables = dict(tuple(design_with_data.groupby(participant)))
+    if between:
+        # Which participants are in which between conditions?
+        groupwise_ptpts = design.groupby(between)[participant].apply(np.unique)
+    else:
+        # Group by a dummy variable that's the same for everyone
+        # Just so we can use the same code later whether or not there's a between-participants condition
+        groupwise_ptpts = design.groupby(lambda _: 0)[participant].apply(np.unique)
+    return design_with_data, ptptwise_subtables, groupwise_ptpts
+
+def _get_bootstrap_sample(dataframe, ptptwise_subtables, groupwise_ptpts):
+    # Sample subjects within groups
+    groupwise_resampled = groupwise_ptpts.apply(lambda x: np.random.choice(x, x.size, replace=True))
+    resampled_participants = np.concatenate(groupwise_resampled.values)
+    # Get data for sampled participants, including within-participant conditions 
+    resample = pd.concat([ptptwise_subtables[ptpt] for ptpt in resampled_participants], ignore_index=True)
+    return resample
+
+def _get_stratifier(n_obs, between=None, within=None, participant=None):
+    if between is not None and within is not None:
+        stratifier = np.column_stack((between, within))
+        _, stratifier = np.unique(stratifier, axis=0, return_inverse=True) # Would be nice to do this earlier 
+    elif between is not None:
+        stratifier = between
+    elif within is not None:
+        stratifier = within
+    else:
+        stratifier = np.zeros((n_obs,), dtype=np.int64)
+    return stratifier
+
+def _get_mean_centred(X, between, within, participant, subtract):
+    if subtract is not None:
+        # Pre-subtract between- or within-wise means if applicable
+        if subtract == 'between':
+            group_idx = between
+        elif subtract == 'within':
+            group_idx = within
+        rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
+        X = X - rowwise_group_means
+    # Compute group-wise means
+    stratifier = _get_stratifier(len(X), between, within, participant)
+    groupwise_means = _get_groupwise_means(X, stratifier)
+    # Mean centre
+    mean_centred = groupwise_means - groupwise_means.mean(axis=0)
+    return mean_centred
+
+def _beh_svd(data, cov, strat, compute_uv=True):
+    # Get level-wise corelation matrices
+    submatrices = []
+    for level in np.unique(strat):
+        idx = strat == level
+        # Collect correlation matrix for this level of the stratifier
+        submatrix = _corr(cov[idx], data[idx])
+        submatrices.append(submatrix)
+    # Stack and decompose
+    R = np.concat(submatrices) # TODO: will this work with just one submatrix?
+    return np.linalg.svd(R, full_matrices=False, compute_uv=compute_uv)
+
+def _corr(X, Y):
+    # Center
+    Xc = X - X.mean(axis=0)
+    Yc = Y - Y.mean(axis=0)
+    # Covariance
+    cov = Xc.T @ Yc / (X.shape[0] - 1)
+    # Normalize
+    stdX = X.std(axis=0, ddof=1)
+    stdY = Y.std(axis=0, ddof=1)
+    return cov / np.outer(stdX, stdY)
+
 def _get_groupwise_means(X, group_idx):
     n_groups = group_idx.max() + 1
     # Sums per group
@@ -390,7 +368,7 @@ def _build_model_matrix(covariates=None, between=None, within=None, participant=
     matrix = np.column_stack(columns)
     return matrix
 
-def _set_up_for_resampling(n_rows, between=None, within=None, participant=None):
+def _get_vars_for_resampling(n_rows, between=None, within=None, participant=None):
     # Set up variables used for resampling
     row_idx = np.arange(n_rows)
     # Set up dummy indicators if needed
@@ -416,3 +394,57 @@ def _get_resample_idx(row_idx, participants_by_between, participant_offsets):
         sampled_rows.extend(row_idx[participant_offsets[p]:participant_offsets[p+1]] for p in samp)
     resample_idx = np.concatenate(sampled_rows)
     return resample_idx
+
+def _set_up_indicators(obj, n_obs, between=None, within=None, participant=None):
+    # TODO: ensure that if group id is higher, ptpt id is higher
+    
+    # Assign none if absent, otherwise assign integer labels
+    if between is None:
+        obj.between_ = None
+    else:
+        _, obj.between_ = np.unique(between, return_inverse=True)
+    if within is None:
+        obj.within_ = None
+        obj.participant_ = None
+    else:
+        _, obj.within_ = np.unique(within, return_inverse=True)
+        _, obj.participant_ = np.unique(participant, return_inverse=True)
+    
+    # Sort by between, then within, then participant, if applicable
+    if obj.between_ is None and obj.within_ is None:
+        return np.arange(n_obs)
+    else:
+        if obj.within_ is not None:
+            sort_key = (obj.within_, obj.participant_)
+            if obj.between_ is not None:
+                sort_key += (obj.between_,)
+            sort_idx = np.lexsort(sort_key)
+            obj.within_ = obj.within_[sort_idx]
+            obj.participant_ = obj.participant_[sort_idx]
+        else:
+            sort_idx = np.argsort(obj.between_)
+        if obj.between_ is not None:
+            obj.between_ = obj.between_[sort_idx]
+        # Requires that object already has X_
+        obj.X_ = obj.X_[sort_idx]
+
+def _get_matrix_to_permute(between=None, within=None, participant=None, covariates=None):
+    cols_to_permute = ()
+    if within is not None:
+        # If there is a within-participants condition, we need to keep
+        # track of it as well as participant identity
+        cols_to_permute += (within, participant)
+    if between is not None:
+        cols_to_permute += (between,)
+    if covariates is not None:
+        cols_to_permute += covariates
+    return np.column_stack(cols_to_permute)
+
+def _get_stacked_cormats(X, covariates, stratifier):
+    submatrices = []
+    for level in np.unique(stratifier):
+        idx = stratifier == level
+        submatrix = _corr(X[idx], covariates[idx])
+        submatrices.append(submatrix)
+    R = np.concat(submatrices)
+    return R
