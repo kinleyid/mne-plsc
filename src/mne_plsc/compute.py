@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from scipy.linalg import orthogonal_procrustes
+from sklearn.utils.extmath import randomized_svd
 
 from pdb import set_trace
 
@@ -10,14 +11,14 @@ class MCPLS():
     def __init__(self, subtract=None):
         self.subtract = subtract
     def fit(self, X, between=None, within=None, participant=None):
-        if participant is None and within is not None:
+        if between is None and within is None:
+            raise ValueError('Observations must be differentiated by some categorical variable (specified via "between" or "within") for mean-centred PLS')
+        if within is not None and participant is None:
             raise ValueError('Participants must be differentiated if there is a within-participants factor')
         self.design_, sort_idx = _get_design_matrix(len(X), between, within, participant)
         self.X_ = X[sort_idx]
-        # TODO: make sure at least one of within and between is not none
-        # TODO: make sure participant is defined if within is defined
-        # TODO: enfore categoricity
-        # TODO: multiple within and between factors?
+        
+        # TODO: enfore categoricity? I.e., check indicator arrays for float values
         # TODO: check whether there are multiple levels of within and between factors
         # TODO: check whether subtract option is possible given availability of factors
         # TODO: make sure lengths of inputs are all the same
@@ -33,6 +34,7 @@ class MCPLS():
         self.design_sals_ = u
         self.contrast_ = u @ np.diag(s)
         self.singular_vals_ = s
+        self.n_lv_ = len(s)
         self.variance_explained_ = s / sum(s)
         self.brain_sals_ = v.T
         return self
@@ -52,6 +54,7 @@ class MCPLS():
                 stratifier=stratifier[perm_idx],
                 subtract=self.subtract)
             s = np.linalg.svd(mean_centred, full_matrices=False, compute_uv=False)
+            # _, s, _ = randomized_svd(mean_centred, len(mean_centred))
             perm_singvals.append(s)
         perm_singvals = np.stack(perm_singvals)
         pvals = (np.sum(perm_singvals >= self.singular_vals_, axis=0) + 1) / (n_perm + 1)
@@ -223,15 +226,18 @@ def _get_stratifier(design):
     _, stratifier = np.unique(design[:, :2], axis=0, return_inverse=True)
     return stratifier
 
+def _pre_centre(X, design, subtract):
+    # Pre-subtract between- or within-wise means if applicable
+    if subtract == 'between':
+        group_idx = design[:, 0]
+    elif subtract == 'within':
+        group_idx = design[:, 1]
+    rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
+    return X - rowwise_group_means
+
 def _get_mean_centred(X, design, stratifier=None, subtract=None):
     if subtract is not None:
-        # Pre-subtract between- or within-wise means if applicable
-        if subtract == 'between':
-            group_idx = design[:, 0]
-        elif subtract == 'within':
-            group_idx = design[:, 1]
-        rowwise_group_means = _get_groupwise_means(X, group_idx)[group_idx]
-        X = X - rowwise_group_means
+        X = _pre_centre(X, design, subtract)
     # Compute group-wise means
     if stratifier is None: # Might not be pre-computed
         stratifier = _get_stratifier(design)
@@ -317,9 +323,8 @@ def _get_resample_idx(row_idx, participants_by_between, participant_offsets):
     return resample_idx
 
 def _get_design_matrix(n_obs, between=None, within=None, participant=None):
-    cols = []
+    # Assign null column of zeros if absent, otherwise assign integer labels
     null_col = np.zeros((n_obs,), dtype=np.int64)
-    # Assign none if absent, otherwise assign integer labels
     if between is None:
         between = null_col
     else:
@@ -408,4 +413,3 @@ def _validate_resample(resample_idx, stratifier):
     # Invalid if all observations are identical within any level
     invalid = (mins == maxs).any()
     return invalid
-    
