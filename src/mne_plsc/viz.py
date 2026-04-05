@@ -3,6 +3,9 @@ import mne
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
+from matplotlib import cm, colors
+import matplotlib.patches as mpatches
+import seaborn as sns
 
 from mne.viz.evoked import _rgb, _plot_legend
 from mne.viz.utils import _plot_masked_image
@@ -18,44 +21,125 @@ def _get_ax(ax=None):
         f = ax.figure
     return f, ax
 
-def design_barplot(df, grouping, with_ci=False, ax=None):
-    # df is the output of "contrast_to_df"
+def _subdivide_ax(ax, nrows=1, ncols=1, sharex=False, sharey=False):
+    gs = gridspec.GridSpecFromSubplotSpec(nrows=nrows,
+                                          ncols=ncols,
+                                          subplot_spec=ax.get_subplotspec())
+    f = ax.figure
+    ax.remove()
+    ax0 = f.add_subplot(gs[0])
+    if sharex:
+        sharex = ax0
+    else:
+        sharex = None
+    if sharey:
+        sharey = ax0
+    else:
+        sharey = None
+    axes = [f.add_subplot(gs[i],
+                                  sharex=ax0,
+                                  sharey=ax0)
+            for i in range(1, nrows*ncols)]
+    ax = np.stack([ax0] + axes)
+    ax = ax.reshape((nrows, ncols))
+    return ax
+
+def score_scatterplot(df, grouping, ax=None):
     f, ax = _get_ax(ax)
     if grouping == 'both':
-        pivot_values = ['brain_score']
-        if with_ci:
-            pivot_values += ['L_CI', 'U_CI']
-        pivoted = df.pivot(index='between', # x by between
-                           columns='within', # colour by within
-                           values=pivot_values)
-        if with_ci:
-            yerr = {}
-            for col in pivoted['brain_score'].columns:
-                yerr[col] = np.array([
-                    pivoted['brain_score'][col] - pivoted['L_CI'][col],
-                    pivoted['U_CI'][col] - pivoted['brain_score'][col],
-                ])
-        else:
-            yerr = None
-        ax = pivoted['brain_score'].plot.bar(yerr=yerr,
-                                             ax=ax)
-        ax.get_legend().set_title(None)
-        # Create space for legend
-        ylim = ax.get_ylim()
-        ax.set_ylim((ylim[0], 1.5*ylim[1]))
+        ax = _subdivide_ax(ax,
+                           ncols=df['between'].nunique(),
+                           sharex=True,
+                           sharey=True)
+        for ax_idx, (group_name, sub_df) in enumerate(df.groupby('between')):
+            curr_ax = ax[0, ax_idx]
+            col = sub_df['within'].cat.codes.map(cm.tab10)
+            sub_df.plot.scatter(x='design_score',
+                                y='data_score',
+                                c=col,
+                                ax=curr_ax)
+            curr_ax.set_title(group_name)
+            if ax_idx == 0:
+                # Add legend manually
+                handles = [
+                    mpatches.Patch(color=cm.tab10(code), label=cat)
+                    for code, cat in enumerate(sub_df['within'].cat.categories)
+                ]
+                curr_ax.legend(handles=handles)
+            curr_ax.set_xlabel(None)
+            curr_ax.set_ylabel(None)
+        f.supxlabel('Design score')
+        f.supylabel('Brain score')
+        plt.tight_layout()
     else:
-        if with_ci:
-            yerr = np.array([df['brain_score'] - df['L_CI'],
-                             df['U_CI'] - df['brain_score']])
+        col = df[grouping].cat.codes.map(cm.tab10)
+        df.plot.scatter(x='design_score',
+                        y='data_score',
+                        c=col,
+                        xlabel='Design score',
+                        ylabel='Brain score',
+                        ax=ax)
+        # Add legend manually
+        handles = [
+            mpatches.Patch(color=cm.tab10(code), label=cat)
+            for code, cat in enumerate(df[grouping].cat.categories)
+        ]
+        ax.legend(handles=handles)
+    return f, ax
+
+def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
+    f, ax = _get_ax(ax)
+
+    def _compute_yerr(pivoted_stat, pivoted_l, pivoted_u):
+        if not with_ci:
+            return None
+        return {col: np.array([pivoted_stat[col] - pivoted_l[col],
+                               pivoted_u[col] - pivoted_stat[col]])
+                for col in pivoted_stat.columns}
+
+    def _pivot_and_plot(sub_df, index, columns, curr_ax):
+        pivot_values = ['stat'] + (['L_CI', 'U_CI'] if with_ci else [])
+        pivoted = sub_df.pivot(index=index, columns=columns, values=pivot_values)
+        yerr = _compute_yerr(pivoted['stat'], pivoted.get('L_CI', {}), pivoted.get('U_CI', {})) if with_ci else None
+        pivoted['stat'].plot.bar(yerr=yerr, ax=curr_ax)
+        curr_ax.set_xlabel(None)
+        return curr_ax
+
+    if 'covariate' in df:
+        # Beh PLS
+        if grouping == 'both':
+            groups = list(df.groupby('between'))
+            ax = _subdivide_ax(ax, nrows=len(groups))
+            for ax_idx, (group, sub_df) in enumerate(groups):
+                curr_ax = ax[ax_idx, 0]
+                curr_ax.set_title(group)
+                _pivot_and_plot(sub_df, index='within', columns='covariate', curr_ax=curr_ax)
+                legend = curr_ax.get_legend()
+                # Show legend only for first axis
+                if ax_idx == 0:
+                    legend.set_title(None)
+                else:
+                    legend.remove()
+                # Show x ticks only for last axis
+                if ax_idx < (len(groups) - 1):
+                    curr_ax.tick_params(axis='x', labelbottom=False)
         else:
-            yerr = None
-        ax = df.plot.bar(x=grouping,
-                         y='brain_score',
-                         legend=False,
-                         yerr=yerr,
-                         ax=ax)
-    ax.set_xlabel(None)
-    ax.set_ylabel('Brain score')
+            ax = _pivot_and_plot(df, index=grouping, columns='covariate', curr_ax=ax)
+            ax.get_legend().set_title(None)
+        f.supylabel('Correlation with brain score')
+    else:
+        # MC PLS
+        if grouping == 'both':
+            ax = _pivot_and_plot(df, index='between', columns='within', curr_ax=ax)
+            ax.get_legend().set_title(None)
+            ylim = ax.get_ylim()
+            ax.set_ylim((ylim[0], 1.5 * ylim[1]))
+        else:
+            yerr = np.array([df['stat'] - df['L_CI'], df['U_CI'] - df['stat']]) if with_ci else None
+            df.plot.bar(x=grouping, y='stat', legend=False, yerr=yerr, ax=ax)
+            ax.set_xlabel(None)
+        ax.set_ylabel('Brain score')
+
     return f, ax
 
 def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=None):
@@ -152,6 +236,20 @@ def plot_lv_psd(template, data, axes):
     # TODO: options for log transforming
 
 ### For plotting clusters
+
+def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=None):
+    f, ax = _get_ax(ax)
+    ax.plot(cluster_sizes)
+    ax.set_xlabel('Cluster index')
+    if size_measure == 'absolute':
+        ax.set_ylabel('Cluster size (n. neural variables)')
+    elif size_measure == 'pct-strong':
+        ax.set_ylabel('Cluster size (% of strong saliences)')
+    elif size_measure == 'pct-total':
+        ax.set_ylabel('Cluster size (% of neural variables)')
+    if logx:
+        ax.set_xscale('log')
+    return f, ax
 
 def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
     f, ax = _get_ax(ax)
@@ -271,6 +369,99 @@ def plot_cluster_distribution(template, mask, ax=None):
     elif template.datatype == 'tfr':
         # TODO: implement
         pass
+    return f, ax
+
+def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=None):
+    # Combine labels and scores into one dataframe
+    df = labels.assign(scores=scores)
+    df = df.sort_values(by=['between', 'within'])
+    if margin in ['time', 'freq']:
+        if margin == 'time':
+            x = template.times
+            xlabel = 'Time (s)'
+        elif margin == 'freq':
+            x = template.freqs
+            xlabel = 'Frequency (Hz)'
+        if grouping == 'both':
+            # Line plots faceted by between condition and coloured by within condition
+            f, ax = plt.subplots(nrows=df['between'].nunique(),
+                                 sharex=True,
+                                 sharey=True)
+            for idx, (btwn, sub_df) in enumerate(df.groupby('between')):
+                btwn_ax = ax[idx]
+                btwn_ax.set_title(btwn)
+                for _, row in sub_df.iterrows():
+                    btwn_ax.plot(x, row['scores'], label=row['within'])
+            ax[0].legend()
+            f.supxlabel(xlabel)
+            f.supylabel('Brain score')
+            plt.tight_layout()
+        else:
+            # Line plots coloured by condition
+            f, ax = plt.subplots()
+            for _, row in df.iterrows():
+                ax.plot(x, row['scores'], label=row[grouping])
+            ax.legend()
+            ax.set_ylabel('Brain score')
+            ax.set_xlabel(xlabel)
+    elif margin in ['chan', 'time-freq']:
+        vlim = np.abs(np.stack(df['scores'])).max()
+        # Set up axes---separate axis per condition
+        if grouping == 'both':
+            f, ax = plt.subplots(nrows=df['between'].nunique(),
+                                 ncols=df['within'].nunique(),
+                                 sharex=True, sharey=True)
+        else:
+            f, ax = plt.subplots(ncols=df[grouping].nunique(),
+                                 sharex=True, sharey=True)
+        # Plots
+        for idx, row in df.iterrows():
+            curr_ax = ax.flat[idx]
+            if margin == 'chan':
+                mne.viz.plot_topomap(
+                    data=row['scores'],
+                    pos=template.info,
+                    vlim=(-vlim, vlim),
+                    axes=curr_ax,
+                    show=False)
+            elif margin == 'time-freq':
+                tfr_image(template,
+                          scores[idx],
+                          ax=curr_ax,
+                          cbar=False,
+                          vlim=(-vlim, vlim),
+                          xlabel=None,
+                          ylabel=None)
+        # Shared colour bar
+        cmap = cm.RdBu_r
+        norm = colors.Normalize(vmin=-vlim, vmax=vlim)
+        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+        cbar = f.colorbar(sm, ax=ax, shrink=0.8)
+        cbar.set_label('Brain score')
+        # Label x and y axes
+        if margin == 'time-freq':
+            f.supxlabel('Time (s)')
+            f.supylabel('Frequency (Hz)')
+        # Label columns
+        if grouping == 'both':
+            top_axes = ax[0]
+            row_labels = df['within'].cat.categories
+        else:
+            top_axes = ax
+            row_labels = df[grouping].cat.categories
+        for curr_ax, label in zip(top_axes, row_labels):
+            curr_ax.set_title(label)
+        if grouping == 'both':
+            # Label rows
+            for curr_ax, label in zip(ax[:, -1], df['between'].cat.categories):
+                curr_ax.yaxis.set_label_position('right')
+                curr_ax.annotate(label,
+                                 xy=(0, 0.5),
+                                 # xytext=(-curr_ax.yaxis.labelpad - 24, 0),
+                                 xytext=(curr_ax.yaxis.labelpad, 5),
+                                 xycoords=curr_ax.yaxis.label,
+                                 textcoords="offset points",
+                                 fontsize=12, ha="left", va="center")
     return f, ax
 
 def plot_clust_nchan_epochs(template, mask, axes):

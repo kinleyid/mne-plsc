@@ -1,11 +1,10 @@
 
 import mne
 import pyls
+import pyplsc
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
-from matplotlib import cm
-from matplotlib import colors
 import pandas as pd
 from mne.stats.cluster_level import _find_clusters
 
@@ -13,33 +12,74 @@ from . import utils, compute, viz
 
 from pdb import set_trace
 
-class MCPLS():
-    def __init__(self, subtract=None):
-        self.pls = compute.MCPLS(subtract=subtract)
-        self.perm_done = False
-        self.boot_done = False
-        self.clustering_done = False
-    def fit(self, data, design=None, between=None, within=None, participant=None):
-        # Data can be:
-        # Single-subject data
-        # A list of single-subject averages
-        # TODO: warn if there is a "within" condition and only one subject
-        self.template_ = Template(data)
-        X = utils.get_datamat(data)
-        labels, indicators = utils.get_indicators(design, between, within, participant)
-        # Are there only between, only within, or both?
-        self.labels_ = labels
-        if 'between' in self.labels_ and 'within' in self.labels_:
-            self.grouping_ = 'both'
+def fit_beh_pls(data,
+                covariates,
+                design=None,
+                between=None,
+                within=None,
+                participant=None,
+                pre_subtract=None,
+                boot_stat='score-covariate-corr',
+                svd_method='lapack',
+                random_state=None):
+    datamat = utils.get_datamat(data)
+    template = Template(data)
+    model = pyplsc.PLSC(boot_stat,
+                        svd_method,
+                        random_state)
+    model.fit(datamat, covariates, design, between, within, participant)
+    grouping = utils.get_grouping(between, within)
+    return PLS(template, model, grouping)
+
+def fit_mc_pls(data,
+               design=None,
+               between=None,
+               within=None,
+               participant=None,
+               pre_subtract=None,
+               boot_stat='condwise-scores-centred',
+               svd_method='lapack',
+               random_state=None):
+    datamat = utils.get_datamat(data)
+    template = Template(data)
+    model = pyplsc.BDA(pre_subtract,
+                       boot_stat,
+                       svd_method,
+                       random_state)
+    model.fit(datamat, design, between, within, participant)
+    grouping = utils.get_grouping(between, within)
+    return MCPLS(template, model, grouping)
+
+class PLS():
+    def __init__(self, template, model, grouping):
+        self.template = template
+        self.model = model
+        self.grouping = grouping # Determines how certain plots will look
+        self._clustering_done = False
+    def get_labels(self, per='lv', zipped=True):
+        if self.grouping_ == 'both':
+            if per == 'lv':
+                between = self.cond_labels_['between'].repeat(len(self.cond_labels_['within']))
+                within = self.cond_labels_['within'].to_list()*len(self.cond_labels_['between'])
+            elif per == 'obs':
+                between_idx, within_idx, _ = self.pls.design_.T
+                between = self.cond_labels_['between'][between_idx]
+                within = self.cond_labels_['within'][within_idx]
+            if zipped:
+                labels = zip(between, within)
+            else:
+                labels = (between, within)
+        elif self.grouping_ == 'neither':
+            labels = None
         else:
-            self.grouping_ = 'between' if 'between' in self.labels_ else 'within'
-        self.pls.fit(X, *indicators)
-    def permute(self, *args):
-        self.pls.permute(*args)
-        self.perm_done = True
-    def bootstrap(self, *args):
-        self.pls.bootstrap(*args)
-        self.boot_done = True
+            lv_labels = self.cond_labels_[self.grouping_]
+            if per == 'lv':
+                labels = lv_labels
+            elif per == 'obs':
+                level_idx = compute._get_stratifier(self.pls.design_)
+                labels = lv_labels[level_idx]
+                
+        return labels
     def summary(self):
         n_lv = len(self.pls.singular_vals_)
         # Format for printing p values
@@ -68,84 +108,35 @@ class MCPLS():
                 else:
                     print('')
             else:
-                print('N/A')
-    
-    def get_labels(self, zipped=True):
-        if self.grouping_ == 'both':
-            within = self.labels_['between'].repeat(len(self.labels_['within']))
-            between = self.labels_['within'].to_list()*len(self.labels_['between'])
-            if zipped:
-                labels = zip(within, between)
-            else:
-                labels = (within, between)
-        else:
-            labels = self.labels_[self.grouping_]
-        return labels
-    
-    def contrast_to_dataframe(self, lv_idx=None):
-        if lv_idx is None:
-            lv_idx = list(range(self.pls.n_lv_))
-        else:
-            try:
-                len(lv_idx)
-            except:
-                lv_idx = [lv_idx]
-        lv_idxs = lv_idx
-        subtables = []
-        for lv_idx in lv_idxs:
-            if self.grouping_ == 'both':
-                between, within = self.get_labels(zipped=False)
-                subtable = pd.DataFrame({
-                    'between': between,
-                    'within': within})
-            else:
-                subtable = pd.DataFrame({
-                    self.grouping_: self.labels_[self.grouping_]})
-            subtable['brain_score'] = self.pls.contrast_[:, lv_idx]
-            if self.boot_done:
-                subtable['L_CI'] = self.pls.bootstrap_ci_[0, :, lv_idx]
-                subtable['U_CI'] = self.pls.bootstrap_ci_[1, :, lv_idx]
-            subtable['lv_idx'] = lv_idx
-            subtables.append(subtable)
-        return pd.concat(subtables)
-    
-    def flip_signs(self, lv_idx=None):
-        if lv_idx is None:
-            lv_idx = list(range(len(self.pls.singular_vals_)))
-        self.pls.brain_sals_[:, lv_idx] *= -1
-        self.pls.design_sals_[:, lv_idx] *= -1
-        self.pls.bootres.x_weights_normed[:, lv_idx] *= -1
-        ## TODO: check how to index LVs
-        self.pls_results.bootres.contrast *= -1
+                print('(none)')
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         if all_channels_adjacent == 'auto':
-            if self.template_.datatype == 'epo':
+            if self.template.datatype == 'epo':
                 all_channels_adjacent = True
                 print('Defaulting to all channels adjacent for ERP analysis')
             else:
                 all_channels_adjacent = False
         if all_channels_adjacent:
-            ch_adj = np.ones((self.template_.info['nchan'],)*2)
+            ch_adj = np.ones((self.template.info['nchan'],)*2)
         else:
             if montage_name is None:
                 # TODO: validate that channel locations are added
-                ch_adj, _ = mne.channels.find_ch_adjacency(self.template_.info, 'eeg')
+                ch_adj, _ = mne.channels.find_ch_adjacency(self.template.info, 'eeg')
             else:
                 ch_adj, _ = mne.channels.read_ch_adjacency(montage_name)
-        dim_adjs = (ch_adj,) + self.template_.shape[1:]
-        self.template_.adjacency = mne.stats.combine_adjacency(*dim_adjs)
- 
+        dim_adjs = (ch_adj,) + self.template.shape[1:]
+        self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
     def cluster(self, which='saliences', threshold=None, signed='auto'):
-        assert 'adjacency' in dir(self.template_)
+        assert 'adjacency' in dir(self.template)
         # TODO: ensure bootstrapping and clustering have been done
         if which == 'bootstrap-ratios':
-            assert self.boot_done # TODO: better error msg
-            data = self.pls.bootstrap_ratios_
+            assert self.model._boot_done # TODO: better error msg
+            data = self.model.bootstrap_ratios_
             if threshold is None:
                 # Conventional 2 BSR
                 threshold = 2
         elif which == 'saliences':
-            data = self.pls.brain_sals_
+            data = self.model.data_sals_
             if threshold is None:
                 # Average salience
                 threshold = np.mean
@@ -159,11 +150,11 @@ class MCPLS():
         try:
             len(threshold)
         except:
-            threshold = [threshold]*self.pls.n_lv_
+            threshold = [threshold]*self.model.n_lv_
         
         absdata = np.abs(data)
         if signed == 'auto':
-            if self.template_.datatype == 'epo':
+            if self.template.datatype == 'epo':
                 signed = False
             else:
                 signed = True
@@ -181,7 +172,7 @@ class MCPLS():
                 data[:, lv_idx],
                 tail=0,
                 threshold=curr_thresh,
-                adjacency=self.template_.adjacency)
+                adjacency=self.template.adjacency)
             # Sort largest to smallest
             idxs.sort(key=len, reverse=True)
             print('%s clusters' % len(idxs))
@@ -191,7 +182,7 @@ class MCPLS():
                 # Get linear index of max
                 peak_idx = clust_idx[absdata[clust_idx, lv_idx].argmax()]
                 # Get coords of max
-                peak_coords = np.unravel_index(peak_idx, self.template_.shape)
+                peak_coords = np.unravel_index(peak_idx, self.template.shape)
                 peaks.append(peak_coords)
             clusters.append({
                 'info': {
@@ -202,138 +193,103 @@ class MCPLS():
                 'clusters': [{'idx': idx, 'peak': peak} for idx, peak in zip(idxs, peaks)]
             })
         self.clusters = clusters
-        self.clustering_done = True
-        
-    def get_marginal_brain_scores(self, lv_idx, margin):
-        # TODO: more informative error msgs here
-        if margin == 'time':
-            assert self.template_.datatype in ['epo', 'tfr']
-        elif margin == 'freq':
-            assert self.template_.datatype in ['psd', 'tfr']
-        elif margin == 'time-freq':
-            assert self.template_.datatype == 'tfr'
-        # (Channel is allowed for all)
-
-        # Compute hadamard products
-        loadings = self.pls.brain_sals_[:, lv_idx]
-        groupwise_means = compute._get_groupwise_means(
-            X=self.pls.X_,
-            group_idx=compute._get_stratifier(self.pls.design_))
-        hadamards = groupwise_means * loadings
-        # Reshape
-        hadamards = [h.reshape(self.template_.shape) for h in hadamards]
-        # Identify axes to average over
-        non_margin_axes = utils.get_non_margin_axes(margin, self.template_.datatype)
-        # Compute marginal scores
-        scores = [h.mean(axis=non_margin_axes) for h in hadamards]
-        return scores
-
-    def plot_lv_design(self, lv_idx, ax=None):
-        # Get contrast dataframe
-        df = self.contrast_to_dataframe(lv_idx)
-        out = viz.design_barplot(df,
-                                 self.grouping_,
-                                 with_ci=self.boot_done,
-                                 ax=ax)
+        self._clustering_done = True
+    def get_cluster_sizes(self, lv_idx=0, size_measure='pct-strong'):
+        # TODO: implement
+        cluster_set = self.clusters[lv_idx]
+        abs_sizes = np.array([len(c['idx']) for c in cluster_set['clusters']])
+        if size_measure == 'absolute':
+            sizes = abs_sizes
+        elif size_measure == 'pct-strong':
+            sizes = 100*abs_sizes/cluster_set['info']['n_above_thresh']
+        elif size_measure == 'pct-total':
+            sizes = 100*abs_sizes/self.template.size
+        return sizes
+    def plot_scree(self):
+        # TODO: implement
+        raise NotImplementedError()
+    def plot_scores(self, lv_idx=0, ax=None):
+        df = self.model.get_scores_frame(lv_idx)
+        out = viz.score_scatterplot(df, self.grouping, ax=ax)
         return out
-    
-    def plot_lv_brain(self, lv_idx, which='saliences', ax=None):
+    def plot_boot_stat(self, lv_idx, ax=None):
+        df = self.model.get_boot_stat_frame(lv_idx)
+        out = viz.boot_stat_barplot(df=df,
+                                    boot_stat=self.model.boot_stat,
+                                    grouping=self.grouping,
+                                    with_ci=self.model._boot_done,
+                                    ax=ax)
+        return out
+    def plot_brain_weights(self, lv_idx, which='saliences', ax=None):
         if which == 'bootstrap-ratios':
-            data = self.pls.bootstrap_ratios_[:, lv_idx]
+            data = self.model.bootstrap_ratios_[:, lv_idx]
             ylabel = 'Bootstrap ratio'
             clabel = 'Mean boostrap ratio'
         elif which == 'saliences':
-            data = self.pls.brain_sals_[:, lv_idx]
+            data = self.model.data_sals_[:, lv_idx]
             ylabel = 'Salience'
             clabel = 'Mean salience'
-        data = data.reshape(self.template_.shape)
-        if self.template_.datatype in ['epo', 'spec']:
+        data = data.reshape(self.template.shape)
+        if self.template.datatype in ['epo', 'spec']:
             # Line plot with spatial colours
-            if self.template_.datatype == 'epo':
-                x = self.template_.times
+            if self.template.datatype == 'epo':
+                x = self.template.times
                 xlabel = 'Time (s)'
-            elif self.template_.datatype == 'spec':
-                x = self.template_.freqs
+            elif self.template.datatype == 'spec':
+                x = self.template.freqs
                 xlabel = 'Frequecy (Hz)'
-            if self.clustering_done:
+            if self._clustering_done:
                 ythresh = self.clusters[lv_idx]['info']['threshold']
             else:
                 ythresh = None
             viz.channel_lineplot(x,
                                  data,
-                                 self.template_.info,
+                                 self.template.info,
                                  ax,
                                  xlabel,
                                  ylabel,
                                  ythresh)
-        elif self.template_.datatype == 'tfr':
+        elif self.template.datatype == 'tfr':
             # Show average
             tf_data = data.mean(axis=0)
-            viz.tfr_image(template=self.template_,
+            viz.tfr_image(template=self.template,
                           data=tf_data,
                           clabel=clabel,
                           ax=ax)
-        
     def plot_lv(self, lv_idx=0, which='saliences', show=True):
         if which == 'bootstrap-ratios':
             assert self.boot_done
         f, ax = plt.subplots(nrows=1, ncols=2, width_ratios=[2, 3])
-        self.plot_lv_design(lv_idx, ax=ax[0])
-        self.plot_lv_brain(lv_idx, ax=ax[1], which=which)
+        self.plot_boot_stat(lv_idx, ax=ax[0])
+        self.plot_brain_weights(lv_idx, ax=ax[1], which=which)
         plt.tight_layout()
-        """
-        title_txt = 'lv_idx %s; %.2f%% var. exp.' % (lv_idx, 100*self.pls_results.varexp[lv_idx])
-        if len(self.pls_results.permres) > 0:
-            # Add p value
-            pval = self.pls_results.permres.pvals[lv_idx]
-            title_txt = '%s; p = %.4f' % (title_txt, pval)
-        f.suptitle(title_txt)
-        plt.tight_layout()
-        if show:
-            plt.show()
-        return f
-        """
-        return f, ax
-    
-    def plot_cluster_sizes(self, lv_idx=0, measure='pct-strong', logx=False):
+    def plot_cluster_sizes(self, lv_idx=0, size_measure='pct-strong', logx=False, ax=None):
         # TODO: Checking for percent vs absolute
-        clusters = self.clusters[lv_idx]
-        set_trace()
-        sizes = np.array([len(c['idx']) for c in clusters['clusters']])
-        if measure == 'pct-strong':
-            sizes = 100*sizes/clusters['info']['n_above_thresh']
-        elif measure == 'pct-total':
-            sizes = 100*sizes/self.template_.size
-        cluster_numbers = np.arange(len(self.clusters[lv_idx]['idx'])) + 1
-        f, ax = plt.subplots()
-        ax.plot(cluster_numbers, sizes)
-        ax.set_xlabel('Cluster number')
-        if measure == 'pct-strong':
-            ax.set_ylabel('Cluster size (% of strong loadings)')
-        elif measure == 'pct-total':
-            ax.set_ylabel('Cluster size (% of datapoints)')
-        elif measure == 'absolute':
-            ax.set_ylabel('Cluster size')
-        # ax.set_title('LV idx: %s' % lv_idx)
-        if logx:
-            ax.set_xscale('log')
-        return f, ax
-    
-    def plot_clusters(self, lv_idx=0, cluster_idx=None, min_cluster_size=0.1, non_chan_plot='masked-data', separate_figures='auto', ax=None):
+        cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
+                                               size_measure=size_measure)
+        out = viz.plot_cluster_sizes(cluster_sizes=cluster_sizes,
+                                     size_measure=size_measure,
+                                     logx=logx,
+                                     ax=ax)
+        return out
+    def plot_clusters(self, lv_idx=0, cluster_idx=None, min_size=10, size_measure='pct-strong', non_chan_plot='masked-data', separate_figures='auto'):
         lv_clusters = self.clusters[lv_idx]
         if lv_clusters['info']['which'] == 'saliences':
-            data = self.pls.brain_sals_[:, lv_idx]
+            data = self.model.data_sals_[:, lv_idx]
         elif lv_clusters['info']['which'] == 'bootstrap-ratios':
-            data = self.pls.bootstrap_ratios_[:, lv_idx]
+            data = self.model.bootstrap_ratios_[:, lv_idx]
         if cluster_idx is None:
             # Plot all clusters above the min size
-            denom = lv_clusters['info']['n_above_thresh']
-            cluster_idx = [i for i, c in enumerate(lv_clusters['clusters']) if len(c['idx'])/denom > min_cluster_size]
+            cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
+                                                   size_measure=size_measure)
+            cluster_idx = np.where(cluster_sizes >= min_size)[0]
         try:
             len(cluster_idx)
         except:
             # Presumably an integer
             cluster_idx = [cluster_idx]
+        if len(cluster_idx) == 0:
+            raise ValueError('No clusters meet or exceed the minimum cluster size')
         if separate_figures == 'auto':
             separate_figures = len(cluster_idx) > 4
         if not separate_figures:
@@ -346,530 +302,46 @@ class MCPLS():
             else:
                 curr_ax = ax[i]
             viz.plot_cluster(data=data,
-                             template=self.template_,
+                             template=self.template,
                              cluster=lv_clusters['clusters'][i],
                              cluster_info=lv_clusters['info'],
                              non_chan_plot=non_chan_plot,
                              ax=curr_ax)
-    
-    def plot_marginal_brain_scores(self, lv_idx, margin):
-        scores = self.get_marginal_brain_scores(lv_idx=lv_idx, margin=margin)
-        labels = self.get_labels()
-        if margin in ['time', 'freq']:
-            if margin == 'time':
-                x = self.template_.times
-                xlabel = 'Time (s)'
-            elif margin == 'freq':
-                x = self.template_.freqs
-                xlabel = 'Frequency (Hz)'
-            if self.grouping_ == 'both':
-                # Line plots faceted by between condition and coloured by within condition
-                f, ax = plt.subplots(nrows=len(self.labels_['between']),
-                                     sharex=True,
-                                     sharey=True)
-                for idx, (between, within) in enumerate(labels):
-                    curr_ax = ax[self.labels_['between'] == between][0]
-                    curr_ax.plot(x, scores[idx], label=within)
-                ax[0].legend()
-                f.supxlabel(xlabel)
-                f.supylabel('Brain score')
-                plt.tight_layout()
-            else:
-                # Line plots coloured by condition
-                f, ax = plt.subplots()
-                for score, label in zip(scores, labels):
-                    ax.plot(x, score, label=label)
-                ax.legend()
-                ax.set_ylabel('Brain score')
-                ax.set_xlabel(xlabel)
-        elif margin in ['chan', 'time-freq']:
-            vlim = np.abs(np.stack(scores)).max()
-            if self.grouping_ == 'both':
-                f, ax = plt.subplots(nrows=len(self.labels_['between']),
-                                     ncols=len(self.labels_['within']),
-                                     sharex=True, sharey=True)
-            else:
-                f, ax = plt.subplots(ncols=len(self.labels_[self.grouping_]),
-                                     sharex=True, sharey=True)
-            # Plots
-            for idx, label in enumerate(labels):
-                if self.grouping_ == 'both':
-                    between, within = label
-                    curr_ax = ax[self.labels_['between'] == between, self.labels_['within'] == within][0]
-                else:
-                    curr_ax = ax[idx]
-                if margin == 'chan':
-                    mne.viz.plot_topomap(
-                        data=scores[idx],
-                        pos=self.template_.info,
-                        vlim=(-vlim, vlim),
-                        axes=curr_ax,
-                        show=False)
-                elif margin == 'time-freq':
-                    viz.tfr_image(self.template_,
-                                  scores[idx],
-                                  ax=curr_ax,
-                                  cbar=False,
-                                  vlim=(-vlim, vlim),
-                                  xlabel=None,
-                                  ylabel=None)
-            # Shared colour bar
-            cmap = cm.RdBu_r
-            norm = colors.Normalize(vmin=-vlim, vmax=vlim)
-            sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-            cbar = f.colorbar(sm, ax=ax, shrink=0.8)
-            cbar.set_label('Brain score')
-            # Label x and y axes
-            if margin == 'time-freq':
-                f.supxlabel('Time (s)')
-                f.supylabel('Frequency (Hz)')
-            # Label rows
-            if self.grouping_ == 'both':
-                top_axes = ax[0]
-                row_labels = self.labels_['within']
-            else:
-                top_axes = ax
-                row_labels = self.labels_[self.grouping_]
-            for curr_ax, label in zip(top_axes, row_labels):
-                curr_ax.set_title(label)
-            # Label columns?
-            if self.grouping_ == 'both':
-                for curr_ax, label in zip(ax[:, -1], self.labels_['between']):
-                    curr_ax.yaxis.set_label_position('right')
-                    curr_ax.annotate(label,
-                                     xy=(0, 0.5),
-                                     # xytext=(-curr_ax.yaxis.labelpad - 24, 0),
-                                     xytext=(curr_ax.yaxis.labelpad, 5),
-                                     xycoords=curr_ax.yaxis.label,
-                                     textcoords="offset points",
-                                     fontsize=12, ha="left", va="center")
-        return f, ax
 
-class BehPLS():
-    def __init__(self, subtract=None):
-        self.pls = compute.BehPLS(subtract=subtract)
-        self.perm_done = False
-        self.boot_done = False
-        self.clustering_done = False
-    def fit(self, data, design=None, between=None, within=None, participant=None):
-        # Data can be:
-        # Single-subject data
-        # A list of single-subject averages
-        # TODO: warn if there is a "within" condition and only one subject
-        self.template_ = Template(data)
-        X = utils.get_datamat(data)
-        labels, indicators = utils.get_indicators(design, between, within, participant)
-        # Are there only between, only within, or both?
-        self.labels_ = labels
-        if 'between' in self.labels_ and 'within' in self.labels_:
-            self.grouping_ = 'both'
-        else:
-            self.grouping_ = 'between' if 'between' in self.labels_ else 'within'
-        self.pls.fit(X, *indicators)
-    def permute(self, *args):
-        self.pls.permute(*args)
-        self.perm_done = True
-    def bootstrap(self, *args):
-        self.pls.bootstrap(*args)
-        self.boot_done = True
-    def summary(self):
-        n_lv = len(self.pls.singular_vals_)
-        # Format for printing p values
-        if self.perm_done:
-            n_digs = np.ceil(np.log10(self.pls_results.inputs.n_perm)) + 2
-            pval_fmt = '%%.%df' % n_digs
-        print('lv_idx   var.exp.   pval')
-        for lv_idx in range(n_lv):
-            print("{:<9}".format(lv_idx), end='')
-            # print('lv_idx %s:' % lv_idx)
-            # print('%s')
-            var_exp = '%s%%' % round(100*self.pls.variance_explained_[lv_idx], 2)
-            print("{:<11}".format(var_exp), end='')
-            # print('  %s%% var. exp.' % round(100*self.pls_results.varexp[lv_idx], 2))
-            if 'pvals' in dir(self.pls):
-                pval = self.pls_results.permres.pvals[lv_idx]
-                print(pval_fmt % pval, end='')
-                if pval < 0.001:
-                    print('***')
-                elif pval < 0.01:
-                    print('**')
-                elif pval < 0.05:
-                    print('*')
-                elif pval < 0.1:
-                    print('.')
-                else:
-                    print('')
-            else:
-                print('N/A')
-    
-    def get_labels(self, zipped=True):
-        if self.grouping_ == 'both':
-            within = self.labels_['between'].repeat(len(self.labels_['within']))
-            between = self.labels_['within'].to_list()*len(self.labels_['between'])
-            if zipped:
-                labels = zip(within, between)
-            else:
-                labels = (within, between)
-        else:
-            labels = self.labels_[self.grouping_]
-        return labels
-    
-    def contrast_to_dataframe(self):
-        subtables = []
-        for lv_idx in range(self.pls.n_lv_):
-            if self.grouping_ == 'both':
-                between, within = self.get_labels(zipped=False)
-                subtable = pd.DataFrame({
-                    'between': between,
-                    'within': within})
-            else:
-                subtable = pd.DataFrame({
-                    self.grouping_: self.labels_[self.grouping_]})
-            subtable['brain_score'] = self.pls.contrast_[:, lv_idx]
-            if self.boot_done:
-                subtable['L_CI'] = self.pls.bootstrap_ci_[0, :, lv_idx]
-                subtable['U_CI'] = self.pls.bootstrap_ci_[1, :, lv_idx]
-            subtable['lv_idx'] = lv_idx
-            subtables.append(subtable)
-        return pd.concat(subtables)
-    
-    def flip_signs(self, lv_idx=None):
-        if lv_idx is None:
-            lv_idx = list(range(len(self.pls.singular_vals_)))
-        self.pls.brain_sals_[:, lv_idx] *= -1
-        self.pls.design_sals_[:, lv_idx] *= -1
-        self.pls.bootres.x_weights_normed[:, lv_idx] *= -1
-        ## TODO: check how to index LVs
-        self.pls_results.bootres.contrast *= -1
-    def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
-        if all_channels_adjacent == 'auto':
-            if self.template_.datatype == 'epo':
-                all_channels_adjacent = True
-                print('Defaulting to all channels adjacent for ERP analysis')
-            else:
-                all_channels_adjacent = False
-        if all_channels_adjacent:
-            ch_adj = np.ones((self.template_.info['nchan'],)*2)
-        else:
-            if montage_name is None:
-                # TODO: validate that channel locations are added
-                ch_adj, _ = mne.channels.find_ch_adjacency(self.template_.info, 'eeg')
-            else:
-                ch_adj, _ = mne.channels.read_ch_adjacency(montage_name)
-        dim_adjs = (ch_adj,) + self.template_.shape[1:]
-        self.template_.adjacency = mne.stats.combine_adjacency(*dim_adjs)
- 
-    def cluster(self, which='saliences', threshold=None, signed='auto'):
-        assert 'adjacency' in dir(self.template_)
-        # TODO: ensure bootstrapping and clustering have been done
-        if which == 'bootstrap-ratios':
-            assert self.boot_done # TODO: better error msg
-            data = self.pls.bootstrap_ratios_
-            if threshold is None:
-                # Conventional 2 BSR
-                threshold = 2
-        elif which == 'saliences':
-            data = self.pls.brain_sals_
-            if threshold is None:
-                # Average salience
-                threshold = np.mean
-        else:
-            pass # TODO: error msg here
-        if callable(threshold):
-            threshold = np.apply_along_axis(func1d=threshold,
-                                            axis=0,
-                                            arr=data)
-        # In case threshold is a scalar, repeat per LV
-        try:
-            len(threshold)
-        except:
-            threshold = [threshold]*self.pls.n_lv_
-        
-        absdata = np.abs(data)
-        if signed == 'auto':
-            if self.template_.datatype == 'epo':
-                signed = False
-            else:
-                signed = True
-        if not signed:
-            data = absdata
-        
-        clusters = []
-        for lv_idx in range(data.shape[1]):
-            # TODO: make an option for separate negative + positive clusters
-            # Separate clustering for positive and negative
-            print('Computing clusters for lv_idx %s...' % lv_idx)
-            curr_thresh = threshold[lv_idx]
-            n_above_thresh = np.sum(absdata[:, lv_idx] > curr_thresh)
-            idxs, sums = _find_clusters(
-                data[:, lv_idx],
-                tail=0,
-                threshold=curr_thresh,
-                adjacency=self.template_.adjacency)
-            # Sort largest to smallest
-            idxs.sort(key=len, reverse=True)
-            print('%s clusters' % len(idxs))
-            # Get peaks of each cluster
-            peaks = []
-            for clust_idx in idxs:
-                # Get linear index of max
-                peak_idx = clust_idx[absdata[clust_idx, lv_idx].argmax()]
-                # Get coords of max
-                peak_coords = np.unravel_index(peak_idx, self.template_.shape)
-                peaks.append(peak_coords)
-            clusters.append({
-                'info': {
-                    'which': which,
-                    'threshold': curr_thresh,
-                    'n_above_thresh': n_above_thresh
-                },
-                'clusters': [{'idx': idx, 'peak': peak} for idx, peak in zip(idxs, peaks)]
-            })
-        self.clusters = clusters
-        self.clustering_done = True
-        
+class MCPLS(PLS):
     def get_marginal_brain_scores(self, lv_idx, margin):
         # TODO: more informative error msgs here
         if margin == 'time':
-            assert self.template_.datatype in ['epo', 'tfr']
+            assert self.template.datatype in ['epo', 'tfr']
         elif margin == 'freq':
-            assert self.template_.datatype in ['psd', 'tfr']
+            assert self.template.datatype in ['psd', 'tfr']
         elif margin == 'time-freq':
-            assert self.template_.datatype == 'tfr'
+            assert self.template.datatype == 'tfr'
         # (Channel is allowed for all)
 
         # Compute hadamard products
-        loadings = self.pls.brain_sals_[:, lv_idx]
-        groupwise_means = compute._get_groupwise_means(
-            X=self.pls.X_,
-            group_idx=compute._get_stratifier(self.pls.design_))
+        loadings = self.model.data_sals_[:, lv_idx]
+        groupwise_means = pyplsc.utils.get_groupwise_means(
+            data=self.model.data_,
+            group_idx=self.model.stratifier_)
         hadamards = groupwise_means * loadings
         # Reshape
-        hadamards = [h.reshape(self.template_.shape) for h in hadamards]
+        hadamards = [h.reshape(self.template.shape) for h in hadamards]
         # Identify axes to average over
-        non_margin_axes = utils.get_non_margin_axes(margin, self.template_.datatype)
+        non_margin_axes = utils.get_non_margin_axes(margin, self.template.datatype)
         # Compute marginal scores
         scores = [h.mean(axis=non_margin_axes) for h in hadamards]
         return scores
-
-    def plot_lv_design(self, lv_idx, ax=None):
-        # Get contrast dataframe
-        df = self.contrast_to_dataframe()
-        df = df[df['lv_idx'] == lv_idx]
-        out = viz.design_barplot(df,
-                                 self.grouping_,
-                                 with_ci=self.boot_done,
-                                 ax=ax)
-        return out
-    
-    def plot_lv_brain(self, lv_idx, which='saliences', ax=None):
-        if which == 'bootstrap-ratios':
-            data = self.pls.bootstrap_ratios_[:, lv_idx]
-            ylabel = 'Bootstrap ratio'
-            clabel = 'Mean boostrap ratio'
-        elif which == 'saliences':
-            data = self.pls.brain_sals_[:, lv_idx]
-            ylabel = 'Salience'
-            clabel = 'Mean salience'
-        data = data.reshape(self.template_.shape)
-        if self.template_.datatype in ['epo', 'spec']:
-            # Line plot with spatial colours
-            if self.template_.datatype == 'epo':
-                x = self.template_.times
-                xlabel = 'Time (s)'
-            elif self.template_.datatype == 'spec':
-                x = self.template_.freqs
-                xlabel = 'Frequecy (Hz)'
-            if self.clustering_done:
-                ythresh = self.clusters[lv_idx]['info']['threshold']
-            else:
-                ythresh = None
-            viz.channel_lineplot(x,
-                                 data,
-                                 self.template_.info,
-                                 ax,
-                                 xlabel,
-                                 ylabel,
-                                 ythresh)
-        elif self.template_.datatype == 'tfr':
-            # Show average
-            tf_data = data.mean(axis=0)
-            viz.tfr_image(template=self.template_,
-                          data=tf_data,
-                          clabel=clabel,
-                          ax=ax)
-        
-    def plot_lv(self, lv_idx=0, which='saliences', show=True):
-        if which == 'bootstrap-ratios':
-            assert self.boot_done
-        f, ax = plt.subplots(nrows=1, ncols=2, width_ratios=[2, 3])
-        self.plot_lv_design(lv_idx, ax=ax[0])
-        self.plot_lv_brain(lv_idx, ax=ax[1], which=which)
-        plt.tight_layout()
-        """
-        title_txt = 'lv_idx %s; %.2f%% var. exp.' % (lv_idx, 100*self.pls_results.varexp[lv_idx])
-        if len(self.pls_results.permres) > 0:
-            # Add p value
-            pval = self.pls_results.permres.pvals[lv_idx]
-            title_txt = '%s; p = %.4f' % (title_txt, pval)
-        f.suptitle(title_txt)
-        plt.tight_layout()
-        if show:
-            plt.show()
-        return f
-        """
-        return f, ax
-    
-    def plot_cluster_sizes(self, lv_idx=0, measure='pct-strong', logx=False):
-        # TODO: Checking for percent vs absolute
-        clusters = self.clusters[lv_idx]
-        set_trace()
-        sizes = np.array([len(c['idx']) for c in clusters['clusters']])
-        if measure == 'pct-strong':
-            sizes = 100*sizes/clusters['info']['n_above_thresh']
-        elif measure == 'pct-total':
-            sizes = 100*sizes/self.template_.size
-        cluster_numbers = np.arange(len(self.clusters[lv_idx]['idx'])) + 1
-        f, ax = plt.subplots()
-        ax.plot(cluster_numbers, sizes)
-        ax.set_xlabel('Cluster number')
-        if measure == 'pct-strong':
-            ax.set_ylabel('Cluster size (% of strong loadings)')
-        elif measure == 'pct-total':
-            ax.set_ylabel('Cluster size (% of datapoints)')
-        elif measure == 'absolute':
-            ax.set_ylabel('Cluster size')
-        # ax.set_title('LV idx: %s' % lv_idx)
-        if logx:
-            ax.set_xscale('log')
-        return f, ax
-    
-    def plot_clusters(self, lv_idx=0, cluster_idx=None, min_cluster_size=0.1, non_chan_plot='masked-data', separate_figures='auto', ax=None):
-        lv_clusters = self.clusters[lv_idx]
-        if lv_clusters['info']['which'] == 'saliences':
-            data = self.pls.brain_sals_[:, lv_idx]
-        elif lv_clusters['info']['which'] == 'bootstrap-ratios':
-            data = self.pls.bootstrap_ratios_[:, lv_idx]
-        if cluster_idx is None:
-            # Plot all clusters above the min size
-            denom = lv_clusters['info']['n_above_thresh']
-            cluster_idx = [i for i, c in enumerate(lv_clusters['clusters']) if len(c['idx'])/denom > min_cluster_size]
-        try:
-            len(cluster_idx)
-        except:
-            # Presumably an integer
-            cluster_idx = [cluster_idx]
-        if separate_figures == 'auto':
-            separate_figures = len(cluster_idx) > 4
-        if not separate_figures:
-            f, ax = plt.subplots(nrows=len(cluster_idx))
-            if len(cluster_idx) == 1:
-                ax = [ax] # Make subscriptable for later on
-        for i in cluster_idx:
-            if separate_figures:
-                f, curr_ax = plt.subplots()
-            else:
-                curr_ax = ax[i]
-            viz.plot_cluster(data=data,
-                             template=self.template_,
-                             cluster=lv_clusters['clusters'][i],
-                             cluster_info=lv_clusters['info'],
-                             non_chan_plot=non_chan_plot,
-                             ax=curr_ax)
-    
     def plot_marginal_brain_scores(self, lv_idx, margin):
         scores = self.get_marginal_brain_scores(lv_idx=lv_idx, margin=margin)
-        labels = self.get_labels()
-        if margin in ['time', 'freq']:
-            if margin == 'time':
-                x = self.template_.times
-                xlabel = 'Time (s)'
-            elif margin == 'freq':
-                x = self.template_.freqs
-                xlabel = 'Frequency (Hz)'
-            if self.grouping_ == 'both':
-                # Line plots faceted by between condition and coloured by within condition
-                f, ax = plt.subplots(nrows=len(self.labels_['between']),
-                                     sharex=True,
-                                     sharey=True)
-                for idx, (between, within) in enumerate(labels):
-                    curr_ax = ax[self.labels_['between'] == between][0]
-                    curr_ax.plot(x, scores[idx], label=within)
-                ax[0].legend()
-                f.supxlabel(xlabel)
-                f.supylabel('Brain score')
-                plt.tight_layout()
-            else:
-                # Line plots coloured by condition
-                f, ax = plt.subplots()
-                for score, label in zip(scores, labels):
-                    ax.plot(x, score, label=label)
-                ax.legend()
-                ax.set_ylabel('Brain score')
-                ax.set_xlabel(xlabel)
-        elif margin in ['chan', 'time-freq']:
-            vlim = np.abs(np.stack(scores)).max()
-            if self.grouping_ == 'both':
-                f, ax = plt.subplots(nrows=len(self.labels_['between']),
-                                     ncols=len(self.labels_['within']),
-                                     sharex=True, sharey=True)
-            else:
-                f, ax = plt.subplots(ncols=len(self.labels_[self.grouping_]),
-                                     sharex=True, sharey=True)
-            # Plots
-            for idx, label in enumerate(labels):
-                if self.grouping_ == 'both':
-                    between, within = label
-                    curr_ax = ax[self.labels_['between'] == between, self.labels_['within'] == within][0]
-                else:
-                    curr_ax = ax[idx]
-                if margin == 'chan':
-                    mne.viz.plot_topomap(
-                        data=scores[idx],
-                        pos=self.template_.info,
-                        vlim=(-vlim, vlim),
-                        axes=curr_ax,
-                        show=False)
-                elif margin == 'time-freq':
-                    viz.tfr_image(self.template_,
-                                  scores[idx],
-                                  ax=curr_ax,
-                                  cbar=False,
-                                  vlim=(-vlim, vlim),
-                                  xlabel=None,
-                                  ylabel=None)
-            # Shared colour bar
-            cmap = cm.RdBu_r
-            norm = colors.Normalize(vmin=-vlim, vmax=vlim)
-            sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-            cbar = f.colorbar(sm, ax=ax, shrink=0.8)
-            cbar.set_label('Brain score')
-            # Label x and y axes
-            if margin == 'time-freq':
-                f.supxlabel('Time (s)')
-                f.supylabel('Frequency (Hz)')
-            # Label rows
-            if self.grouping_ == 'both':
-                top_axes = ax[0]
-                row_labels = self.labels_['within']
-            else:
-                top_axes = ax
-                row_labels = self.labels_[self.grouping_]
-            for curr_ax, label in zip(top_axes, row_labels):
-                curr_ax.set_title(label)
-            # Label columns?
-            if self.grouping_ == 'both':
-                for curr_ax, label in zip(ax[:, -1], self.labels_['between']):
-                    curr_ax.yaxis.set_label_position('right')
-                    curr_ax.annotate(label,
-                                     xy=(0, 0.5),
-                                     # xytext=(-curr_ax.yaxis.labelpad - 24, 0),
-                                     xytext=(curr_ax.yaxis.labelpad, 5),
-                                     xycoords=curr_ax.yaxis.label,
-                                     textcoords="offset points",
-                                     fontsize=12, ha="left", va="center")
-        return f, ax
-    
+        labels = self.model.get_labels()
+        out = viz.plot_marginal_brain_scores(scores=scores,
+                                             margin=margin,
+                                             labels=labels,
+                                             template=self.template,
+                                             grouping=self.grouping)
+        return out
+
 class Template():
     def __init__(self, source):
         # Keep the useful info without the data
@@ -1391,3 +863,28 @@ def get_default_labels(groups, n_cond=None, **kwargs):
     # labels = ['cond-%s' % (idx + 1) for idx in range(len(data))]
     labels = ['group %s cond %s' % (group_n, 0) for group_n in range(len(groups))]
     return labels
+
+def _get_covariates(design, covariates, names):
+    # Get covariates
+    if design is not None:
+        # Case 1: design is table, covariates is column names
+        covariates = design[covariates].to_numpy()
+    else:
+        # Case 2: covariates is table, array, list
+        covariate_array = np.array(covariates)
+        # Ensure column vector
+        if covariate_array.ndim == 1:
+            covariate_array = np.expand_dims(covariate_array, 1)
+    if names is None:
+        if design is not None:
+            names = covariates
+        else:
+            if 'columns' in dir(covariates):
+                # dataframe
+                names = covariates.columns.to_list()
+            elif 'name' in dir(covariates):
+                # series
+                names = [covariates.name]
+            else:
+                names = ['cov%s' % i for i in range(covariate_array.shape[1])]
+    return covariate_array, names

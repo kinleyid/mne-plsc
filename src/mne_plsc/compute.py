@@ -38,6 +38,18 @@ class MCPLS():
         self.variance_explained_ = s / sum(s)
         self.brain_sals_ = v.T
         return self
+    def transform_brain(self, X=None):
+        # Brain scores
+        if X is None:
+            X = self.X_
+        brain_scores = X @ self.brain_sals_
+        return brain_scores
+    def transform_design(self, Y=None):
+        # Design scores
+        if Y is None:
+            Y = _get_stratifier(self.design_)
+        design_scores = self.design_sals_[Y]
+        return design_scores
     def permute(self, n_perm=5000):
         if n_perm < 1:
             raise ValueError('n_perm must be a positive integer')
@@ -104,17 +116,26 @@ class BehPLS():
     def __init__(self):
         # No initialization variables
         pass
-    def fit(self, X, covariates, within=None, between=None, participant=None):
+    def fit(self, X, covariates, between=None, within=None, participant=None):
         # Store data
         self.design_, sort_idx = _get_design_matrix(len(X), between, within, participant)
         self.X_ = X[sort_idx]
         self.covariates_ = covariates[sort_idx]
         stratifier = _get_stratifier(self.design_)
-        R = _get_stacked_cormats(self.X_, self.covariates_, stratifier)
+        R = _get_stacked_cormats(
+            self.X_,
+            self.covariates_,
+            stratifier)
         u, s, v = np.linalg.svd(R, full_matrices=False, compute_uv=True)
         self.design_sals_ = u
         self.singular_vals_ = s
+        self.variance_explained_ = s / sum(s)
         self.brain_sals_ = v.T
+        stacked_cormats = _get_stacked_cormats(
+            self.X_ @ self.brain_sals_, # Brain scores
+            self.covariates_,
+            stratifier)
+        set_trace()
     def permute(self, n_perm=5000):
         perm_singvals = []
         print('Permuting...')

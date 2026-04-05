@@ -92,6 +92,29 @@ def get_indicators(design=None, between=None, within=None, participant=None):
     indicators = tuple(indicators[k] for k in ['between', 'within', 'participant'])
     return labels, indicators
 
+def get_grouping_old(labels):
+    # Figure out if data is grouped by a between-subjects
+    # variable, a within-subjects variable, both, or neither
+    if 'between' in labels and 'within' in labels:
+        grouping = 'both'
+    elif 'between' in labels or 'within' in labels:
+        grouping = 'between' if 'between' in labels else 'within'
+    else:
+        grouping = 'neither'
+    return grouping
+
+def get_grouping(between, within):
+    # Figure out if data is grouped by a between-subjects
+    # variable, a within-subjects variable, both, or neither
+    if between is None and within is None:
+        grouping = 'neither'
+    elif between is None or within is None:
+        grouping = 'within' if between is None else 'between'
+    else:
+        grouping = 'both'
+    return grouping
+    
+
 def get_non_margin_axes(margin, datatype):
     mapping = {
         'time': {'epo': 0,
