@@ -163,8 +163,12 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     # Show sensor legend
     pos, outlines = mne.viz.evoked._get_pos_outlines(
         info, picks=range(len(info['chs'])), sphere=None)
-    _plot_legend(
-        pos, colors=spatial_cols, axis=ax, bads=[], outlines=outlines, loc='upper left')
+    _plot_legend(pos,
+                 colors=spatial_cols,
+                 axis=ax,
+                 bads=[],
+                 outlines=outlines,
+                 loc='upper left')
     # Axis labels
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

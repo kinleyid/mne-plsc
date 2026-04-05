@@ -242,13 +242,13 @@ class PLS():
                 ythresh = self.clusters[lv_idx]['info']['threshold']
             else:
                 ythresh = None
-            viz.channel_lineplot(x,
-                                 data,
-                                 self.template.info,
-                                 ax,
-                                 xlabel,
-                                 ylabel,
-                                 ythresh)
+            viz.channel_lineplot(x=x,
+                                 ch_y=data,
+                                 info=self.template.info,
+                                 ax=ax,
+                                 xlabel=xlabel,
+                                 ylabel=ylabel,
+                                 ythresh=ythresh)
         elif self.template.datatype == 'tfr':
             # Show average
             tf_data = data.mean(axis=0)
@@ -314,7 +314,7 @@ class MCPLS(PLS):
         if margin == 'time':
             assert self.template.datatype in ['epo', 'tfr']
         elif margin == 'freq':
-            assert self.template.datatype in ['psd', 'tfr']
+            assert self.template.datatype in ['spec', 'tfr']
         elif margin == 'time-freq':
             assert self.template.datatype == 'tfr'
         # (Channel is allowed for all)
@@ -434,7 +434,7 @@ class Results():
         if self.datatype == 'epochs':
             # data shape is channels x time
             dim_adjs = (ch_adj, len(self.template.times))
-        elif self.datatype == 'psd':
+        elif self.datatype == 'spec':
             dim_adjs = (ch_adj, len(self.template.freqs))
         elif self.datatype == 'tfr':
             dim_adjs = (ch_adj, len(self.template.freqs), len(self.template.times))
@@ -593,8 +593,8 @@ class Results():
         # Right axis: depends on data type
         if self.datatype == 'epochs':
             viz.plot_lv_epochs(self.template, right_data, ax[1])
-        elif self.datatype == 'psd':
-            viz.plot_lv_psd(self.template, right_data, ax[1])
+        elif self.datatype == 'spec':
+            viz.plot_lv_spec(self.template, right_data, ax[1])
         elif self.datatype == 'tfr':
             viz.plot_lv_tfr(self.template, right_data, ax[1])
         ax[1].set_ylabel(right_ylabel)
@@ -651,8 +651,8 @@ class Results():
             nchan_ax = fig.add_subplot(gs[clust_idx*2 + 1, 0])
             if self.datatype == 'epochs':
                 viz.plot_clust_nchan_epochs(self.template, mask, nchan_ax)
-            elif self.datatype == 'psd':
-                viz.plot_clust_nchan_psd(self.template, mask, nchan_ax)
+            elif self.datatype == 'spec':
+                viz.plot_clust_nchan_spec(self.template, mask, nchan_ax)
             elif self.datatype == 'tfr':
                 self.template._data = np.stack([mask.sum(axis=0)]*len(self.template.info['ch_names']))
                 self.template.plot(combine='mean', axes=nchan_ax, show=False)
@@ -663,7 +663,7 @@ class Results():
                 time_mask = mask.sum(axis=0) > 0
                 topo_data = boot_rats[:, time_mask].mean(axis=1)
                 ch_mask = mask.sum(axis=1) > 0
-            elif self.datatype == 'psd':
+            elif self.datatype == 'spec':
                 freq_mask = mask.sum(axis=0) > 0
                 topo_data = boot_rats[:, freq_mask].mean(axis=1)
                 ch_mask = mask.sum(axis=1) > 0
@@ -692,7 +692,7 @@ class Results():
         if margin == 'time':
             assert self.datatype in ['epochs', 'tfr']
         elif margin == 'frequency':
-            assert self.datatype in ['psd', 'tfr']
+            assert self.datatype in ['spec', 'tfr']
         elif margin == 'time-frequency':
             assert self.datatype == 'tfr'
         
@@ -711,7 +711,7 @@ class Results():
             elif self.datatype == 'tfr':
                 non_margin_axes = (0, 1)
         elif margin == 'frequency':
-            if self.datatype == 'psd':
+            if self.datatype == 'spec':
                 non_margin_axes = 0
             elif self.datatype == 'tfr':
                 non_margin_axes = (0, 2)
