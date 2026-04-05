@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib import cm, colors
 import matplotlib.patches as mpatches
-import seaborn as sns
+# import seaborn as sns
 
 from mne.viz.evoked import _rgb, _plot_legend
 from mne.viz.utils import _plot_masked_image
