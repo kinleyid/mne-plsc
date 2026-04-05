@@ -8,7 +8,7 @@ from matplotlib import gridspec
 import pandas as pd
 from mne.stats.cluster_level import _find_clusters
 
-from . import utils, compute, viz
+from . import utils, viz
 
 from pdb import set_trace
 
