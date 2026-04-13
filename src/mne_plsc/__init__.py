@@ -12,13 +12,21 @@ from . import utils, viz
 
 from pdb import set_trace
 
+class BadStrArgError(Exception):
+    def __init__(self, argname, provided, allowed):
+        self.message = '%s is not a valid value for "%s". Must be one of %s' % (provided, argname, allowed)
+        super().__init__(self.message)
+
+def _check_str_arg(argname, provided, allowed):
+    if provided not in allowed:
+        raise BadStrArgError(argname, provided, allowed)
+
 def fit_beh_pls(data,
                 covariates,
                 design=None,
                 between=None,
                 within=None,
                 participant=None,
-                pre_subtract=None,
                 boot_stat='score-covariate-corr',
                 svd_method='lapack',
                 random_state=None):
@@ -27,7 +35,11 @@ def fit_beh_pls(data,
     model = pyplsc.PLSC(boot_stat,
                         svd_method,
                         random_state)
-    model.fit(datamat, covariates, design, between, within, participant)
+    model.fit(data=datamat,
+              design=design,
+              between=between,
+              within=within,
+              participant=participant)
     grouping = utils.get_grouping(between, within)
     return PLS(template, model, grouping)
 
@@ -36,17 +48,21 @@ def fit_mc_pls(data,
                between=None,
                within=None,
                participant=None,
-               pre_subtract=None,
+               effects='all',
                boot_stat='condwise-scores-centred',
                svd_method='lapack',
                random_state=None):
     datamat = utils.get_datamat(data)
     template = Template(data)
-    model = pyplsc.BDA(pre_subtract,
-                       boot_stat,
-                       svd_method,
-                       random_state)
-    model.fit(datamat, design, between, within, participant)
+    model = pyplsc.BDA(boot_stat=boot_stat,
+                       svd_method=svd_method,
+                       random_state=random_state)
+    model.fit(data=datamat,
+              design=design,
+              between=between,
+              within=within,
+              participant=participant,
+              effects=effects)
     grouping = utils.get_grouping(between, within)
     return MCPLS(template, model, grouping)
 
@@ -56,6 +72,7 @@ class PLS():
         self.model = model
         self.grouping = grouping # Determines how certain plots will look
         self._clustering_done = False
+    '''
     def get_labels(self, per='lv', zipped=True):
         if self.grouping_ == 'both':
             if per == 'lv':
@@ -80,6 +97,8 @@ class PLS():
                 labels = lv_labels[level_idx]
                 
         return labels
+    '''
+    '''
     def summary(self):
         n_lv = len(self.pls.singular_vals_)
         # Format for printing p values
@@ -109,6 +128,7 @@ class PLS():
                     print('')
             else:
                 print('(none)')
+    '''
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         if all_channels_adjacent == 'auto':
             if self.template.datatype == 'epo':
@@ -127,10 +147,12 @@ class PLS():
         dim_adjs = (ch_adj,) + self.template.shape[1:]
         self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
     def cluster(self, which='saliences', threshold=None, signed='auto'):
-        assert 'adjacency' in dir(self.template)
-        # TODO: ensure bootstrapping and clustering have been done
+        _check_str_arg('which', which, ('saliences', 'bootstrap-ratios'))
+        if 'adjacency' not in dir(self.template):
+            raise ValueError('Adjacency must be added with .add_adjacency() before clustering can be done')
         if which == 'bootstrap-ratios':
-            assert self.model._boot_done # TODO: better error msg
+            if not self.model._boot_done:
+                raise ValueError('Bootstrap resampling must be done to use bootstrap ratios for clustering.')
             data = self.model.bootstrap_ratios_
             if threshold is None:
                 # Conventional 2 BSR
@@ -140,8 +162,6 @@ class PLS():
             if threshold is None:
                 # Average salience
                 threshold = np.mean
-        else:
-            pass # TODO: error msg here
         if callable(threshold):
             threshold = np.apply_along_axis(func1d=threshold,
                                             axis=0,
@@ -195,7 +215,6 @@ class PLS():
         self.clusters = clusters
         self._clustering_done = True
     def get_cluster_sizes(self, lv_idx=0, size_measure='pct-strong'):
-        # TODO: implement
         cluster_set = self.clusters[lv_idx]
         abs_sizes = np.array([len(c['idx']) for c in cluster_set['clusters']])
         if size_measure == 'absolute':
@@ -264,7 +283,8 @@ class PLS():
         self.plot_brain_weights(lv_idx, ax=ax[1], which=which)
         plt.tight_layout()
     def plot_cluster_sizes(self, lv_idx=0, size_measure='pct-strong', logx=False, ax=None):
-        # TODO: Checking for percent vs absolute
+        _check_str_arg('size_measure', size_measure,
+                       ('pct-strong', 'pct-total', 'absolute'))
         cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
                                                size_measure=size_measure)
         out = viz.plot_cluster_sizes(cluster_sizes=cluster_sizes,
@@ -310,14 +330,18 @@ class PLS():
 
 class MCPLS(PLS):
     def get_marginal_brain_scores(self, lv_idx, margin):
-        # TODO: more informative error msgs here
+        _check_str_arg('margin', margin,
+                       ('chan', 'time', 'freq', 'time-freq'))
         if margin == 'time':
-            assert self.template.datatype in ['epo', 'tfr']
+            allowed_datatypes = ('epo', 'tfr')
         elif margin == 'freq':
-            assert self.template.datatype in ['spec', 'tfr']
+            allowed_datatypes = ('spec', 'tfr')
         elif margin == 'time-freq':
+            allowed_datatypes = ('tfr',)
             assert self.template.datatype == 'tfr'
-        # (Channel is allowed for all)
+        if self.template.datatype not in allowed_datatypes:
+            raise ValueError('Marginal brain scores over margin "%s" can only be computed for datatypes %s' % (margin, allowed_datatypes))
+        # ('chan' is allowed for all)
 
         # Compute hadamard products
         loadings = self.model.data_sals_[:, lv_idx]
@@ -334,7 +358,7 @@ class MCPLS(PLS):
         return scores
     def plot_marginal_brain_scores(self, lv_idx, margin):
         scores = self.get_marginal_brain_scores(lv_idx=lv_idx, margin=margin)
-        labels = self.model.get_labels()
+        labels = self.model.design_sal_labels_
         out = viz.plot_marginal_brain_scores(scores=scores,
                                              margin=margin,
                                              labels=labels,
