@@ -21,15 +21,15 @@ def _check_str_arg(argname, provided, allowed):
     if provided not in allowed:
         raise BadStrArgError(argname, provided, allowed)
 
-def fit_beh_pls(data,
-                covariates,
-                design=None,
-                between=None,
-                within=None,
-                participant=None,
-                boot_stat='score-covariate-corr',
-                svd_method='lapack',
-                random_state=None):
+def fit_beh(data,
+            covariates,
+            design=None,
+            between=None,
+            within=None,
+            participant=None,
+            boot_stat='score-covariate-corr',
+            svd_method='lapack',
+            random_state=None):
     datamat = utils.get_datamat(data)
     template = Template(data)
     model = pyplsc.PLSC(boot_stat,
@@ -43,15 +43,15 @@ def fit_beh_pls(data,
     grouping = utils.get_grouping(between, within)
     return PLS(template, model, grouping)
 
-def fit_mc_pls(data,
-               design=None,
-               between=None,
-               within=None,
-               participant=None,
-               effects='all',
-               boot_stat='condwise-scores-centred',
-               svd_method='lapack',
-               random_state=None):
+def fit_mc(data,
+           design=None,
+           between=None,
+           within=None,
+           participant=None,
+           effects='all',
+           boot_stat='condwise-scores-centred',
+           svd_method='lapack',
+           random_state=None):
     datamat = utils.get_datamat(data)
     template = Template(data)
     model = pyplsc.BDA(boot_stat=boot_stat,
@@ -138,7 +138,7 @@ class PLS():
         all_channels_adjacent : bool, optional
             Specifies whether all channels should be considered adjacent to each other for the purposes of clustering. This is useful when doing ERP analyses, where strong loadings at non-adjacent channels would be considered part of the same component. The default is ``'auto'``, which is ``True`` for ERP analysis (inferred based on :attr:`template.datatype`) and ``False`` for all other analyses.
         montage_name : str, optional
-            Name of montage passed to ``mne.channels.read_ch_adjacency``. The default is None, which uses ``mne.channels.find_ch_adjacency`` to get channel adjacency.
+            Name of montage passed to ``mne.channels.read_ch_adjacency``. The default is ``None``, which uses ``mne.channels.find_ch_adjacency`` to get channel adjacency.
 
         Returns
         -------
@@ -166,7 +166,7 @@ class PLS():
         Parameters
         ----------
         which : str, optional
-            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be used for clustering. The default is 'saliences'.
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be used for clustering. The default is `'saliences'`.
         threshold : float, optional
             Saliences must be above this threshold to be part of a cluster. The default is ``None``, which uses the mean salience if ``which='saliences'`` and a value of 2 if ``which='z-scores'``.
         signed : bool, optional
@@ -182,7 +182,7 @@ class PLS():
         if which == 'z-scores':
             if not self.model._boot_done:
                 raise ValueError('Bootstrap resampling must be done to use z scores for clustering.')
-            data = self.model.bootstrap_ratios_
+            data = self.model.data_sals_z_
             if threshold is None:
                 # Conventional 2 BSR
                 threshold = 2
@@ -250,9 +250,9 @@ class PLS():
         Parameters
         ----------
         lv_idx : int
-            For which latent variable index should cluster sizes be returned? The default is 0 (first latent variable).
+            Index of latent variable pair for which the plot should be generated.
         size_measure : str, optional
-            How should cluster size be measured? Must be one of:
+            Specifies how cluster size should be measured. Must be one of:
             
             - ``'pct-strong'`` (default): cluster sizes are as a percentage of the strong saliences (strong meaning above the threshold used in :meth:`cluster()`)
             - ``'pct-total'``: cluster sizes are as a percentage of the total number of saliences per singular vector.
@@ -276,9 +276,15 @@ class PLS():
         elif size_measure == 'pct-total':
             sizes = 100*abs_sizes/self.template.size
         return sizes
-    def plot_scree(self, perm_dist=None):
-        # TODO: implement
-        raise NotImplementedError()
+    def plot_scree(self, which='pct-variance', null_dist=None, null_percentile=95, ax=None):
+        _check_str_arg('which', which,
+                       ('pct-variance', 'singular-vals'))
+        viz.scree(singular_vals=self.model.singular_vals_,
+                  which=which,
+                  rank=self.model.rank_,
+                  null_dist=null_dist,
+                  null_percentile=null_percentile,
+                  ax=ax)
     def plot_scores(self, lv_idx, ax=None):
         """
         Create a scatterplot of data scores against design scores.
@@ -286,9 +292,9 @@ class PLS():
         Parameters
         ----------
         lv_idx : int
-            Index of the latent variable pair to plot.
+            Index of latent variable pair for which the plot should be generated.
         ax : instance of Matplotlib Axes, optional
-            Axes to plot to. The default is None, which generates a new figure.
+            Axes to plot to. The default is ``None``, which generates a new figure.
 
         Returns
         -------
@@ -306,9 +312,9 @@ class PLS():
         Parameters
         ----------
         lv_idx : int
-            Index of latent variable for which the plot should be generated.
+            Index of latent variable pair for which the plot should be generated.
         ax : instance of Matplotlib Axes, optional
-            Axes to plot to. The default is None, which generates a new figure.
+            Axes to plot to. The default is ``None``, which generates a new figure.
 
         Returns
         -------
@@ -324,8 +330,27 @@ class PLS():
                                     ax=ax)
         return out
     def plot_brain_sals(self, lv_idx, which='saliences', ax=None):
+        """
+        Plot of brain saliences.
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair for which the plot should be generated.
+        which : str, optional
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted. The default is `'saliences'`.
+        ax : instance of Matplotlib Axes, optional
+            Axes to plot to. The default is ``None``, which generates a new figure.
+
+        Returns
+        -------
+        f, ax
+            Figure and axes containing plot.
+        """
+        _check_str_arg('which', which,
+                       ('saliences', 'z-scores'))
         if which == 'z-scores':
-            data = self.model.bootstrap_ratios_[:, lv_idx]
+            data = self.model.data_sals_z_[:, lv_idx]
             ylabel = 'z score'
             clabel = 'Mean z score'
         elif which == 'saliences':
@@ -359,14 +384,50 @@ class PLS():
                           data=tf_data,
                           clabel=clabel,
                           ax=ax)
-    def plot_lv(self, lv_idx=0, which='saliences', show=True):
+    def plot_lv(self, lv_idx, which='saliences'):
+        """
+        Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair for which the plot should be generated.
+        which : str, optional
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted in the right panel. The default is `'saliences'`.
+
+        Returns
+        -------
+        f, ax
+            Figure and axes containing plot.
+        """
+        
         if which == 'z-scores':
             assert self.boot_done
         f, ax = plt.subplots(nrows=1, ncols=2, width_ratios=[2, 3])
         self.plot_boot_stat(lv_idx, ax=ax[0])
         self.plot_brain_sals(lv_idx, ax=ax[1], which=which)
         plt.tight_layout()
-    def plot_cluster_sizes(self, lv_idx=0, size_measure='pct-strong', logx=False, ax=None):
+        return f, ax
+    def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', logx=False, ax=None):
+        """
+        Create a plot of cluster sizes from largest to smallest.
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair for which clusters should be plotted.
+        size_measure: str, optional
+            Specifies how cluster size should be measured. See :meth:`get_cluster_sizes`. The default is `'pct-strong'`.
+        logx : bool, optional
+            If ``True``, x axis will be on a log scale. Default is ``False``.
+        ax : instance of Matplotlib Axes, optional
+            Axes to plot to. The default is ``None``, which generates a new figure.
+
+        Returns
+        -------
+        f, ax
+            Figure and axes containing plot.
+        """
         cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
                                                size_measure=size_measure)
         out = viz.plot_cluster_sizes(cluster_sizes=cluster_sizes,
@@ -374,12 +435,12 @@ class PLS():
                                      logx=logx,
                                      ax=ax)
         return out
-    def plot_clusters(self, lv_idx=0, cluster_idx=None, min_size=10, size_measure='pct-strong', non_chan_plot='masked-data', separate_figures='auto'):
+    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', non_chan_plot='masked-data', separate_figures='auto'):
         lv_clusters = self.clusters[lv_idx]
         if lv_clusters['info']['which'] == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
         elif lv_clusters['info']['which'] == 'z-scores':
-            data = self.model.bootstrap_ratios_[:, lv_idx]
+            data = self.model.data_sals_z_[:, lv_idx]
         if cluster_idx is None:
             # Plot all clusters above the min size
             cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,

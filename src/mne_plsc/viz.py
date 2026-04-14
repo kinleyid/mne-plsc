@@ -239,6 +239,43 @@ def plot_lv_psd(template, data, axes):
     axes.set_xlabel('Frequency (Hz)')
     # TODO: options for log transforming
 
+def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=None):
+    f, ax = _get_ax(ax)
+    if which == 'pct-variance':
+        total_variance = singular_vals.sum()
+        singular_vals = 100*singular_vals/total_variance
+    # Plot non-null 
+    ax.scatter(x=np.arange(rank),
+               y=singular_vals[:rank],
+               c='black',
+               label='observed')
+    # Plot null
+    ax.scatter(x=np.arange(rank, len(singular_vals)),
+               y=singular_vals[rank:],
+               c='black',
+               marker='x')
+    ax.set_xlabel('Latent variable pair index')
+    if which == 'pct-variance':
+        ax.set_ylabel('Percent variance')
+    elif which == 'singular-val':
+        ax.set_ylabel('Singular value')
+    # Plot permutation distribution
+    if null_dist is not None:
+        if which == 'pct-variance':
+            null_dist = 100*null_dist/total_variance
+        mins = null_dist.min(axis=0)
+        maxs = np.percentile(null_dist, null_percentile, axis=0)
+        for i in range(rank):
+            if i == 0:
+                label = 'Null distribution\n(0%% to %s%%)' % null_percentile
+            else:
+                label = '_nolegend_'
+            ax.plot([i]*2, [mins[i], maxs[i]], 'r', label=label)
+        ax.legend()
+    ax.set_xticks(np.arange(len(singular_vals)))
+    ax.set_xticklabels(np.arange(len(singular_vals)))
+    return f, ax
+
 ### For plotting clusters
 
 def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=None):
