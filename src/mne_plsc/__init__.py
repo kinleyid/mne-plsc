@@ -277,6 +277,25 @@ class PLS():
             sizes = 100*abs_sizes/self.template.size
         return sizes
     def plot_scree(self, which='pct-variance', null_dist=None, null_percentile=95, ax=None):
+        """
+        Generate a scree plot of singular values, possibly along with their null distributions.
+
+        Parameters
+        ----------
+        which : str, optional
+            Specifies whether the raw singular values (``'singular-vals'``) or percent variance explained (``'pct-variance'``) should be plotted. The default is ``'pct-variance'``.
+        null_dist : numpy.ndarray, optional
+            Null distribution of singular values to display, as returned by :attr:`model.permute()`. The default is ``None``, which plots no null distribution.
+        null_percentile : float, optional
+            If provided, the null distribution of each singular value is displayed as a vertical line from the minimum to a percentile specified by this argument. The default is ``95``.
+        ax : instance of Matplotlib Axes, optional
+            Axes to plot to. The default is ``None``, which generates a new figure.
+
+        Returns
+        -------
+        f, ax
+            Figure and axes containing plot.
+        """
         _check_str_arg('which', which,
                        ('pct-variance', 'singular-vals'))
         viz.scree(singular_vals=self.model.singular_vals_,

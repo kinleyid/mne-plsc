@@ -242,8 +242,8 @@ def plot_lv_psd(template, data, axes):
 def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=None):
     f, ax = _get_ax(ax)
     if which == 'pct-variance':
-        total_variance = singular_vals.sum()
-        singular_vals = 100*singular_vals/total_variance
+        total_variance = np.sum(singular_vals**2)
+        singular_vals = 100*singular_vals**2/total_variance
     # Plot non-null 
     ax.scatter(x=np.arange(rank),
                y=singular_vals[:rank],
@@ -256,18 +256,18 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
                marker='x')
     ax.set_xlabel('Latent variable pair index')
     if which == 'pct-variance':
-        ax.set_ylabel('Percent variance')
+        ax.set_ylabel('Percent variance explained')
     elif which == 'singular-val':
         ax.set_ylabel('Singular value')
     # Plot permutation distribution
     if null_dist is not None:
         if which == 'pct-variance':
-            null_dist = 100*null_dist/total_variance
+            null_dist = 100*null_dist**2/total_variance
         mins = null_dist.min(axis=0)
         maxs = np.percentile(null_dist, null_percentile, axis=0)
         for i in range(rank):
             if i == 0:
-                label = 'Null distribution\n(0%% to %s%%)' % null_percentile
+                label = 'Null distribution\n(up to %sth\npercentile)' % null_percentile
             else:
                 label = '_nolegend_'
             ax.plot([i]*2, [mins[i], maxs[i]], 'r', label=label)
