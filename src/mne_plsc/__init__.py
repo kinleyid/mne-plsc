@@ -72,6 +72,7 @@ class PLS():
         self.model = model
         self.grouping = grouping # Determines how certain plots will look
         self._clustering_done = False
+        self.null_dist = None # Container for null singular value distribution
     '''
     def get_labels(self, per='lv', zipped=True):
         if self.grouping_ == 'both':
@@ -129,6 +130,40 @@ class PLS():
             else:
                 print('(none)')
     '''
+    def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
+        """
+        Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`pvals_` property.
+
+        Parameters
+        ----------
+        n_perm : int, optional
+            Number of permutations t operform. The default is 5000.
+        store_null_dist : bool, optional
+            If ``True``, permutation samples will be saved and used for, e.g., scree plots. Default is ``True``.
+        n_jobs : int, optional
+            Number of parallel jobs to deploy to compute permutations. -1 automatically deploys the maximum number of jobs. The default is 1.
+        print_prog : bool, optional
+            Specifies whether to display a progress bar. Default is ``True``.
+
+        Returns
+        -------
+        None
+        
+        Notes
+        -----
+        p values are available through the :attr:`model.pvals_` attribute
+
+        Examples
+        --------
+        >>> res.permute(n_perm=1000, n_jobs=-1)
+        >>> print(res.model.pvals_)
+        """
+        """
+        
+        self.null_dist = self.model.permute(n_perm=n_perm,
+                                            n_jobs=n_jobs,
+                                            print_prog=print_prog,
+                                            return_null_dist=store_null_dist)
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         """
         Add adjacency matrix for clustering.
@@ -276,7 +311,7 @@ class PLS():
         elif size_measure == 'pct-total':
             sizes = 100*abs_sizes/self.template.size
         return sizes
-    def plot_scree(self, which='pct-variance', null_dist=None, null_percentile=95, ax=None):
+    def plot_scree(self, which='pct-variance', null_percentile=95, ax=None):
         """
         Generate a scree plot of singular values, possibly along with their null distributions.
 
@@ -291,6 +326,10 @@ class PLS():
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
+        Notes
+        -----
+        If ``which`` is ``'pct-variance'``, the singular values in the null distribution are squared and divided by the sum of the squared observed singular values.
+
         Returns
         -------
         f, ax
@@ -301,7 +340,7 @@ class PLS():
         viz.scree(singular_vals=self.model.singular_vals_,
                   which=which,
                   rank=self.model.rank_,
-                  null_dist=null_dist,
+                  null_dist=self.null_dist,
                   null_percentile=null_percentile,
                   ax=ax)
     def plot_scores(self, lv_idx, ax=None):
@@ -434,7 +473,7 @@ class PLS():
         Parameters
         ----------
         lv_idx : int
-            Index of latent variable pair for which clusters should be plotted.
+            Index of latent variable pair for which cluster sizes should be plotted.
         size_measure: str, optional
             Specifies how cluster size should be measured. See :meth:`get_cluster_sizes`. The default is `'pct-strong'`.
         logx : bool, optional
@@ -455,16 +494,41 @@ class PLS():
                                      ax=ax)
         return out
     def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', non_chan_plot='masked-data', separate_figures='auto'):
+        """
+        Plot clusters of strong loadings. 
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair for which clusters should be plotted.
+        cluster_idx : indexer, optional
+            Index of cluster(s) to display. The default is ``None``, which displays all clusters whose size exceeds ``min_size``
+        min_size : TYPE, optional
+            Minimum size of clusters to display. The default is ``10``. Ignored if ``cluster_idx`` is specified.
+        size_measure : str, optional
+            Specifies the size measure to use when comparing cluster sizes to ``min_size``. See :meth:`get_cluster_sizes`. The default is ``'pct-strong'``. Ignored if ``cluster_idx`` is specified.
+        non_chan_plot : TYPE, optional
+            DESCRIPTION. The default is ``'masked-data'``.
+        separate_figures : bool, optional
+            Specifies whether each cluster should be displayed in a separate figure. The default is ``'auto'``, which displays clusters in separate figures if there are more than 4.
+
+        Returns
+        -------
+        None
+        """
+        
         lv_clusters = self.clusters[lv_idx]
         if lv_clusters['info']['which'] == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
         elif lv_clusters['info']['which'] == 'z-scores':
             data = self.model.data_sals_z_[:, lv_idx]
+        # Default to manually specified cluster_idx
         if cluster_idx is None:
             # Plot all clusters above the min size
             cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
                                                    size_measure=size_measure)
             cluster_idx = np.where(cluster_sizes >= min_size)[0]
+        # Fallback to checking cluster sizes
         try:
             len(cluster_idx)
         except:
@@ -492,17 +556,43 @@ class PLS():
 
 class MCPLS(PLS):
     def get_marginal_brain_scores(self, lv_idx, margin):
+        """
+        Compute marginal brain scores per condition across a specified margin. This generalizes the notion temporal brain scores from the original Matlab PLS.
+
+        Parameters
+        ----------
+        lv_idx : int
+            The index of the latent variable pair for which marginal brain scores should be computed.
+        margin : str
+            The margin across which brain scores should be computed. Must be one of:
+            
+            - ``'chan'``: channel
+            - ``'time'``: time (computes temporal brain scores)
+            - ``'freq'``: frequency
+            - ``'time-freq'``: both time and frequency
+
+        Notes
+        -----
+        Use :meth:`model.data_sal_labels_` to determine which elements of the output list correspond to which experimental conditions.        
+
+        Returns
+        -------
+        list of numpy.ndarray
+            Marginal brain scores per condition.
+        """
+        
         _check_str_arg('margin', margin,
                        ('chan', 'time', 'freq', 'time-freq'))
-        if margin == 'time':
-            allowed_datatypes = ('epo', 'tfr')
-        elif margin == 'freq':
-            allowed_datatypes = ('spec', 'tfr')
-        elif margin == 'time-freq':
-            allowed_datatypes = ('tfr',)
-            assert self.template.datatype == 'tfr'
-        if self.template.datatype not in allowed_datatypes:
-            raise ValueError('Marginal brain scores over margin "%s" can only be computed for datatypes %s' % (margin, allowed_datatypes))
+        if margin != 'chan':
+            if margin == 'time':
+                allowed_datatypes = ('epo', 'tfr')
+            elif margin == 'freq':
+                allowed_datatypes = ('spec', 'tfr')
+            elif margin == 'time-freq':
+                allowed_datatypes = ('tfr',)
+                assert self.template.datatype == 'tfr'
+            if self.template.datatype not in allowed_datatypes:
+                raise ValueError('Marginal brain scores over margin "%s" can only be computed for datatypes %s' % (margin, allowed_datatypes))
         # ('chan' is allowed for all)
 
         # Compute hadamard products
@@ -519,6 +609,22 @@ class MCPLS(PLS):
         scores = [h.mean(axis=non_margin_axes) for h in hadamards]
         return scores
     def plot_marginal_brain_scores(self, lv_idx, margin):
+        """
+        Plot marginal brain scores.
+
+        Parameters
+        ----------
+        lv_idx : int
+            The index of the latent variable pair for which marginal brain scores should be computed.
+        margin : str
+            The margin across which brain scores should be computed. See :meth:`get_marginal_brain_scores`.
+
+        Returns
+        -------
+        f, ax
+            Figure and axes containing plot.
+        """
+        
         scores = self.get_marginal_brain_scores(lv_idx=lv_idx, margin=margin)
         labels = self.model.design_sal_labels_
         out = viz.plot_marginal_brain_scores(scores=scores,

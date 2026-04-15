@@ -248,7 +248,7 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
     ax.scatter(x=np.arange(rank),
                y=singular_vals[:rank],
                c='black',
-               label='observed')
+               label='Observed')
     # Plot null
     ax.scatter(x=np.arange(rank, len(singular_vals)),
                y=singular_vals[rank:],
