@@ -158,7 +158,6 @@ class PLS():
         >>> res.permute(n_perm=1000, n_jobs=-1)
         >>> print(res.model.pvals_)
         """
-        """
         
         self.null_dist = self.model.permute(n_perm=n_perm,
                                             n_jobs=n_jobs,
