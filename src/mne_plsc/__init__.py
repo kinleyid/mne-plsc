@@ -36,6 +36,7 @@ def fit_beh(data,
                         svd_method,
                         random_state)
     model.fit(data=datamat,
+              covariates=covariates,
               design=design,
               between=between,
               within=within,
@@ -233,7 +234,7 @@ class PLS():
         try:
             len(threshold)
         except:
-            threshold = [threshold]*self.model.n_lv_
+            threshold = [threshold]*self.model.n_sv_
         
         absdata = np.abs(data)
         if signed == 'auto':

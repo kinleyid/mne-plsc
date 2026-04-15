@@ -50,12 +50,12 @@ def run_result_methods(result):
     result.cluster()
     result.model.permute(10)
     result.model.bootstrap(10)
-    result.cluster(which='bootstrap-ratios')
+    result.cluster(which='z-scores')
     run_result_plots(result)
 
 def test_mc_both(sample_data):
     data, _, between, within, participant = sample_data
-    result = mne_plsc.fit_mc_pls(data=data,
+    result = mne_plsc.fit_mc(data=data,
                                  between=between,
                                  within=within,
                                  participant=participant,
@@ -64,7 +64,7 @@ def test_mc_both(sample_data):
 
 def test_mc_within(sample_data):
     data, _, between, within, participant = sample_data
-    result = mne_plsc.fit_mc_pls(data=data,
+    result = mne_plsc.fit_mc(data=data,
                                  within=within,
                                  participant=participant,
                                  random_state=123)
@@ -72,7 +72,7 @@ def test_mc_within(sample_data):
 
 def test_beh_both(sample_data):
     data, covariates, between, within, participant = sample_data
-    result = mne_plsc.fit_beh_pls(data=data,
+    result = mne_plsc.fit_beh(data=data,
                                   covariates=covariates,
                                   between=between,
                                   within=within,
@@ -82,7 +82,7 @@ def test_beh_both(sample_data):
     
 def test_beh_within(sample_data):
     data, covariates, between, within, participant = sample_data
-    result = mne_plsc.fit_beh_pls(data=data,
+    result = mne_plsc.fit_beh(data=data,
                                   covariates=covariates,
                                   within=within,
                                   participant=participant,
