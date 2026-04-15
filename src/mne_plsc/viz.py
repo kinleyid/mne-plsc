@@ -306,8 +306,8 @@ def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
     if non_chan_plot == 'masked-data':
         if cluster_info['which'] == 'saliences':
             ylabel = 'Salience'
-        elif cluster_info['which'] == 'bootstrap-ratios':
-            ylabel = 'Bootstrap ratio'
+        elif cluster_info['which'] == 'z-scores':
+            ylabel = 'Bootstrap ratio (z score)'
         f, ax_left = plot_cluster_nonchan_margin(data,
                                                  template,
                                                  mask,
@@ -331,8 +331,8 @@ def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
     # Colorbar
     if cluster_info['which'] == 'saliences':
         clabel = 'Mean salience in cluster'
-    elif cluster_info['which'] == 'bootstrap-ratios':
-        clabel = 'Mean bootstrap ratio in cluster'
+    elif cluster_info['which'] == 'z-scores':
+        clabel = 'Mean bootstrap ratio (z score) in cluster'
     cbar = ax_right.figure.colorbar(im, shrink=0.6)
     cbar.ax.set_ylabel(clabel)
     plt.tight_layout()
@@ -371,8 +371,8 @@ def plot_cluster_nonchan_margin(data, template, mask, cluster_info, ylabel=None,
         tfr_data = np.array(masked.mean(axis=0))
         if cluster_info['which'] == 'saliences':
             clabel = 'Mean salience'
-        elif cluster_info['which'] == 'bootstrap-ratios':
-            clabel = 'Mean bootstrap ratio'
+        elif cluster_info['which'] == 'z-scores':
+            clabel = 'Mean bootstrap ratio (z score)'
         tfr_image(template, tfr_data, clabel=clabel, ax=ax)
         
     return f, ax
