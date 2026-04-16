@@ -1,1 +1,3 @@
 mne-plsc
+nbsphinx
+ipykernel
