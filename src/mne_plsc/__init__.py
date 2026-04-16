@@ -4,8 +4,6 @@ import mne
 import pyplsc
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import gridspec
-import pandas as pd
 from mne.stats.cluster_level import _find_clusters
 
 from . import utils, viz
@@ -42,7 +40,7 @@ def fit_beh(data,
               within=within,
               participant=participant)
     grouping = utils.get_grouping(between, within)
-    return PLS(template, model, grouping)
+    return PLSC(template, model, grouping)
 
 def fit_mc(data,
            design=None,
@@ -65,9 +63,9 @@ def fit_mc(data,
               participant=participant,
               effects=effects)
     grouping = utils.get_grouping(between, within)
-    return MCPLS(template, model, grouping)
+    return MCPLSC(template, model, grouping)
 
-class PLS():
+class PLSC():
     def __init__(self, template, model, grouping):
         self.template = template
         self.model = model
@@ -554,7 +552,7 @@ class PLS():
                              non_chan_plot=non_chan_plot,
                              ax=curr_ax)
 
-class MCPLS(PLS):
+class MCPLSC(PLSC):
     def get_marginal_brain_scores(self, lv_idx, margin):
         """
         Compute marginal brain scores per condition across a specified margin. This generalizes the notion temporal brain scores from the original Matlab PLS.

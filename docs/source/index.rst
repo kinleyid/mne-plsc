@@ -17,12 +17,11 @@ Installation
 
    pip install mne-plsc
 
-Quickstart
-----------
-
-
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
+   fit_beh
+   fit_mc
+   PLS
