@@ -2,7 +2,6 @@
 import mne
 import numpy as np
 import pandas as pd
-import pyplsc
 
 from pdb import set_trace
 

@@ -16,7 +16,8 @@ author = 'Isaac Kinley'
 extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.napoleon',
-	'nbsphinx'
+	'nbsphinx',
+	'sphinx.ext.intersphinx'
 ]
 
 napoleon_numpy_docstring = True
@@ -34,6 +35,11 @@ templates_path = ['_templates']
 exclude_patterns = []
 
 autodoc_member_order = 'groupwise'
+
+intersphinx_mapping = {
+    'pyplsc': ('https://pyplsc.readthedocs.io/en/stable/', None),
+    'mne': ('https://mne.tools/stable/', None),
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

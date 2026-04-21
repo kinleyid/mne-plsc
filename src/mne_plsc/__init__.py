@@ -34,7 +34,7 @@ def fit_beh(data,
     Parameters
     ----------
     data : MNE object or iterable of MNE objects
-        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition.
     covariates : ``np.ndarray`` | ``pd.DataFrame`` | iterable of ``str``
         Array or dataframe containing covariates, or an iterable of strings specifying the name(s) of the column(s) in ``design`` that contain the covariates.
     design : ``pd.DataFrame``, optional
@@ -46,9 +46,9 @@ def fit_beh(data,
     participant : iterable | ``str``, optional
         An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
     boot_stat : ``str``, optional
-        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``. See :class:`pyplsc.PLSC` for details.
     svd_method : ``str``, optional
-        The method of SVD decomposition. The default is ``'lapack'``.
+        The method of SVD decomposition. The default is ``'lapack'``. See :class:`pyplsc.PLSC` for details.
     random_state : ``int``, optional
         Random state for seeding the model. The default is None.
 
@@ -87,7 +87,7 @@ def fit_mc(data,
     Parameters
     ----------
     data : MNE object or iterable of MNE objects
-        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition.
     design : ``pd.DataFrame``, optional
         Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
     between : iterable | ``str``, optional
@@ -97,9 +97,9 @@ def fit_mc(data,
     participant : iterable | ``str``, optional
         An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
     boot_stat : ``str``, optional
-        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``. See :class:`pyplsc.BDA` for details.
     svd_method : ``str``, optional
-        The method of SVD decomposition. The default is ``'lapack'``.
+        The method of SVD decomposition. The default is ``'lapack'``. See :class:`pyplsc.BDA` for details.
     random_state : ``int``, optional
         Random state for seeding the model. The default is None.
 
@@ -138,14 +138,14 @@ def fit_within_beh(data,
         The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
     covariates : iterable of ``str``
         An iterable of strings specifying the name(s) of the columns in the ``.metadata`` of each object in ``data`` that contain the covariates.
-    within : TYPE, optional
-        DESCRIPTION. The default is None.
-    boot_stat : TYPE, optional
-        DESCRIPTION. The default is 'score-covariate-corr'.
-    svd_method : TYPE, optional
-        DESCRIPTION. The default is 'lapack'.
-    random_state : TYPE, optional
-        DESCRIPTION. The default is None.
+    within : ``str``, optional
+        A string specifying the name of a column in the ``.metadata`` of each object in ``data`` that contains an indicator of within-participants condition. The default is ``None``, which does not stratify observations by within-participants condition.
+    boot_stat : ``str``, optional
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
+    svd_method : ``str``, optional
+        The method of SVD decomposition. The default is ``'lapack'``.
+    random_state : ``int``, optional
+        Random state for seeding the model. The default is None.
 
     Returns
     -------
@@ -169,19 +169,15 @@ def fit_within_beh(data,
 
 class PLSC():
     """
-    PLSC model.
+    Container for PLSC model.
     """
     
     def __init__(self, template, model, grouping):
-        self.template = template
-        """
-        :type: `int`
-        A template containing xyz :class:`Template`
-        """
-        self.model = model
-        self.grouping = grouping # Determines how certain plots will look
+        self.template = template #: :class:`Template`: A template containing storing channel positions etc. for plotting.
+        self.model = model #: :class:`pyplsc.PLSC`: A PLSC model.
+        self.grouping = grouping #: ``str``: Used to specify whether data are specified by within-participants condition, between-participants condition, both, or neither.
         self._clustering_done = False
-        self.null_dist = None
+        self.null_dist = None #: ``numpy.ndarray``: Array contain null distribution of singular values. Set by :meth:`permute`.
     '''
     def get_labels(self, per='lv', zipped=True):
         if self.grouping_ == 'both':
