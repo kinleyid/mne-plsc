@@ -28,6 +28,36 @@ def fit_beh(data,
             boot_stat='score-covariate-corr',
             svd_method='lapack',
             random_state=None):
+    """
+    Fit behaviour PLS model.
+
+    Parameters
+    ----------
+    data : MNE object or iterable of MNE objects
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+    covariates : ``np.ndarray`` | ``pd.DataFrame`` | iterable of ``str``
+        Array or dataframe containing covariates, or an iterable of strings specifying the name(s) of the column(s) in ``design`` that contain the covariates.
+    design : ``pd.DataFrame``, optional
+        Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
+    between : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of between-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    within : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    participant : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    boot_stat : ``str``, optional
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
+    svd_method : ``str``, optional
+        The method of SVD decomposition. The default is ``'lapack'``.
+    random_state : ``int``, optional
+        Random state for seeding the model. The default is None.
+
+    Returns
+    -------
+    :class:`PLSC`
+        PLSC object fit to the data.
+    """
+    
     datamat = utils.get_datamat(data)
     template = Template(data)
     model = pyplsc.PLSC(boot_stat,
@@ -51,6 +81,34 @@ def fit_mc(data,
            boot_stat='condwise-scores-centred',
            svd_method='lapack',
            random_state=None):
+    """
+    Fit mean-centred PLS model.
+
+    Parameters
+    ----------
+    data : MNE object or iterable of MNE objects
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+    design : ``pd.DataFrame``, optional
+        Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
+    between : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of between-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    within : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    participant : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    boot_stat : ``str``, optional
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
+    svd_method : ``str``, optional
+        The method of SVD decomposition. The default is ``'lapack'``.
+    random_state : ``int``, optional
+        Random state for seeding the model. The default is None.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+    """
+    
     datamat = utils.get_datamat(data)
     template = Template(data)
     model = pyplsc.BDA(boot_stat=boot_stat,
@@ -65,13 +123,65 @@ def fit_mc(data,
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
 
+def fit_within_beh(data,
+                   covariates,
+                   within=None,
+                   boot_stat='score-covariate-corr',
+                   svd_method='lapack',
+                   random_state=None):
+    """
+    Fit within-participants behaviour PLS model.
+
+    Parameters
+    ----------
+    data : MNE object or iterable of MNE objects
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+    covariates : iterable of ``str``
+        An iterable of strings specifying the name(s) of the columns in the ``.metadata`` of each object in ``data`` that contain the covariates.
+    within : TYPE, optional
+        DESCRIPTION. The default is None.
+    boot_stat : TYPE, optional
+        DESCRIPTION. The default is 'score-covariate-corr'.
+    svd_method : TYPE, optional
+        DESCRIPTION. The default is 'lapack'.
+    random_state : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+    """
+    
+    if not isinstance(data, list):
+        data = [data]
+    datamat_list = [utils.get_datamat(ptpt) for ptpt in data]
+    design_list = [ptpt.metadata for ptpt in data]
+    template = Template(data)
+    model = pyplsc.WPLSC(boot_stat=boot_stat,
+                         svd_method=svd_method,
+                         random_state=random_state)
+    model.fit(data=datamat_list,
+              design=design_list,
+              covariates=covariates,
+              within=within)
+    return PLSC(template, model, grouping='within')
+
 class PLSC():
+    """
+    PLSC model.
+    """
+    
     def __init__(self, template, model, grouping):
         self.template = template
+        """
+        :type: `int`
+        A template containing xyz :class:`Template`
+        """
         self.model = model
         self.grouping = grouping # Determines how certain plots will look
         self._clustering_done = False
-        self.null_dist = None # Container for null singular value distribution
+        self.null_dist = None
     '''
     def get_labels(self, per='lv', zipped=True):
         if self.grouping_ == 'both':
@@ -131,7 +241,7 @@ class PLSC():
     '''
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
         """
-        Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`pvals_` property.
+        Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`model.pvals_` attribute.
 
         Parameters
         ----------
@@ -158,6 +268,7 @@ class PLSC():
         >>> print(res.model.pvals_)
         """
         
+        #: Null distribution
         self.null_dist = self.model.permute(n_perm=n_perm,
                                             n_jobs=n_jobs,
                                             print_prog=print_prog,
@@ -175,7 +286,8 @@ class PLSC():
 
         Returns
         -------
-        None. Adds an ``adjacency`` property to :attr:`template` which indicates which channels, times, and frequencies (as applicable) are adjacent for clustering.
+        None.
+            None. Adds an ``adjacency`` attribute to :attr:`template` which indicates which channels, times, and frequencies (as applicable) are adjacent for clustering.
         """
         if all_channels_adjacent == 'auto':
             if self.template.datatype == 'epo':
@@ -208,6 +320,7 @@ class PLSC():
         Returns
         -------
         None
+            None. Adds the attribute :attr:`clusters`.
         """
         _check_str_arg('which', which, ('saliences', 'z-scores'))
         if 'adjacency' not in dir(self.template):
@@ -457,8 +570,6 @@ class PLSC():
             Figure and axes containing plot.
         """
         
-        if which == 'z-scores':
-            assert self.boot_done
         f, ax = plt.subplots(nrows=1, ncols=2, width_ratios=[2, 3])
         self.plot_boot_stat(lv_idx, ax=ax[0])
         self.plot_brain_sals(lv_idx, ax=ax[1], which=which)
@@ -553,6 +664,10 @@ class PLSC():
                              ax=curr_ax)
 
 class MCPLSC(PLSC):
+    """
+    Mean-centred PLSC
+    """
+    
     def get_marginal_brain_scores(self, lv_idx, margin):
         """
         Compute marginal brain scores per condition across a specified margin. This generalizes the notion temporal brain scores from the original Matlab PLS.
@@ -633,6 +748,9 @@ class MCPLSC(PLSC):
         return out
 
 class Template():
+    """
+    Template for plotting
+    """
     def __init__(self, source):
         # Keep the useful info without the data
         if isinstance(source, list):

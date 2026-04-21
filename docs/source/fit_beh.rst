@@ -2,6 +2,4 @@
 fit_beh
 =======
 
-.. autoclass:: mne_plsc.fit_beh
-   :inherited-members:
-   :members:
+.. autofunction:: mne_plsc.fit_beh

@@ -24,4 +24,6 @@ Installation
 
    fit_beh
    fit_mc
-   PLS
+   PLSC
+   MCPLSC
+   Template
