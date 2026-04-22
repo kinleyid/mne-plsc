@@ -22,8 +22,6 @@ Installation
    :maxdepth: 1
    :caption: Contents:
 
-   fit_beh
-   fit_mc
-   PLSC
-   MCPLSC
-   Template
+   fitting/fitting
+   utils/utils
+   classes/classes

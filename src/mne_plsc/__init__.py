@@ -105,8 +105,8 @@ def fit_mc(data,
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    :class:`MCPLSC`
+        MCPLSC object fit to the data.
     """
     
     datamat = utils.get_datamat(data)
@@ -149,8 +149,8 @@ def fit_within_beh(data,
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    :class:`PLSC`
+        PLSC model fit to the data.
     """
     
     if not isinstance(data, list):
@@ -745,7 +745,7 @@ class MCPLSC(PLSC):
 
 class Template():
     """
-    Template for plotting
+    Template containing channels, times, frequencies, etc. associated with the data. This is used 
     """
     def __init__(self, source):
         # Keep the useful info without the data

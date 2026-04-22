@@ -1,38 +1,72 @@
 
-import mne
 import numpy as np
 import pandas as pd
 
 from pdb import set_trace
 
-def get_epoch_labels(data):
-    reverse_id = {v: k for k, v in data.event_id.items()}
-    labels = [reverse_id[n] for n in data.events[:, 2]]
+def get_epoch_labels(epochs):
+    """
+    Get a list of labels corresponding to each epoch for a set of epoched data.
+
+    Parameters
+    ----------
+    epochs : :class:`mne.Epochs` | :class:`mne.time_frequency.EpochsSpectrum` | :class:`mne.time_frequency.EpochsTFR`
+        MNE data object containing epoch data.
+
+    Returns
+    -------
+    labels : ``list``
+        List of the same length as the input data object containing one label per epoch.
+        
+    Examples
+    --------
+    >>> labels = get_epoch_labels(epo)
+    """
+    reverse_id = {v: k for k, v in epochs.event_id.items()}
+    labels = [reverse_id[n] for n in epochs.events[:, 2]]
     return labels
 
-def get_template(data, datatype):
-    # Given a list of observations, get a single "template"
-    # with info for plotting etc. later
-    
-    if isinstance(data, list):
-        # Should already be average over epochs
-        template = data[0]
-    else:
-        # Single-participant data; need to compute average over epochs
-        if datatype == 'epo':
-            # Epochs to Evoked
-            template = mne.EvokedArray(
-                data=np.zeros(data._data.shape[1:]),
-                info=data.info,
-                tmin=data.tmin)
-        elif datatype in ['tfr', 'spec']:
-            # EpochsTFR to AverageTFR
-            template = data.average()
-        else:
-            pass
-            # TODO: validate datatype
-    
-    return template
+def average_epochs_by_label(epochs_list, between=None):
+    """
+    From a list of epoch data, get a list of 
+
+    Parameters
+    ----------
+    epochs_list : :class:`mne.Epochs` | :class:`mne.time_frequency.EpochsSpectrum` | :class:`mne.time_frequency.EpochsTFR`
+        MNE data object containing epoch data.
+    between : iterable
+        Iterable of between-participants condition labels corresponding to each element in ``epochs_list``.
+
+    Returns
+    -------
+    data_list : ``list``
+        List containing epoch averages
+    design : `pd.DataFrame`
+        Design matrix specify
+        
+    Examples
+    --------
+    >>> labels = get_epoch_labels(epo)
+    """
+    if not isinstance(epochs_list, list):
+        raise ValueError('data must be a list of recordings')
+    if between is not None:
+        if len(epochs_list) != len(between):
+            raise ValueError('epochs_list and between must be of the same length')
+    # Here data is a list of MNE objects
+    data_list = []
+    rows = []
+    for ptpt_idx, ptpt_data in enumerate(epochs_list):
+        labels = get_epoch_labels(ptpt_data)
+        for label in labels:
+            avg = ptpt_data[label].average()
+            row = {'within': label, 'participant': ptpt_idx}
+            if between is not None:
+                row['between'] = between[ptpt_idx]
+            data_list.append(avg)
+            rows.append(row)
+    design = pd.DataFrame.from_records(rows)
+    return data_list, design
 
 def infer_datatype(data):
     attrs = dir(data)
