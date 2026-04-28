@@ -346,6 +346,7 @@ class PLSC():
         
         if signed == 'auto':
             if self.template.datatype == 'epo':
+                print('Defaulting to un-signed clustering for ERP/ERF analysis')
                 signed = False
             else:
                 signed = True

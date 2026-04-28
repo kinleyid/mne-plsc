@@ -17,7 +17,7 @@ from pdb import set_trace
 
 def _get_ax(ax=None):
     if ax is None:
-        f, ax = plt.subplots()
+        f, ax = plt.subplots(layout='constrained')
     else:
         f = ax.figure
     return f, ax
@@ -71,7 +71,6 @@ def score_scatterplot(df, grouping, ax=None):
             curr_ax.set_ylabel(None)
         f.supxlabel('Design score')
         f.supylabel('Brain score')
-        plt.tight_layout()
     elif grouping == 'neither':
         df.plot.scatter(x='design_score',
                         y='data_score',
@@ -357,7 +356,6 @@ def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
         clabel = 'Mean bootstrap ratio (z score) in cluster'
     cbar = ax_right.figure.colorbar(im, shrink=0.6)
     cbar.ax.set_ylabel(clabel)
-    plt.tight_layout()
     return f, (ax_left, ax_right)
 
 def plot_cluster_nonchan_margin(data, template, mask, cluster_info, ylabel=None, ax=None):
@@ -449,7 +447,8 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
             # Line plots faceted by between condition and coloured by within condition
             f, ax = plt.subplots(nrows=df['between'].nunique(),
                                  sharex=True,
-                                 sharey=True)
+                                 sharey=True,
+                                 layout='constrained')
             for idx, (btwn, sub_df) in enumerate(df.groupby('between')):
                 btwn_ax = ax[idx]
                 btwn_ax.set_title(btwn)
@@ -458,7 +457,6 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
             ax[0].legend()
             f.supxlabel(xlabel)
             f.supylabel('Brain score')
-            plt.tight_layout()
         else:
             # Line plots coloured by condition
             f, ax = plt.subplots()
