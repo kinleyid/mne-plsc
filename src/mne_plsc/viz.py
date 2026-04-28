@@ -495,10 +495,10 @@ def plot_cluster_nontopo(data, template, mask, cluster_info, ylabel=None, ax=Non
         masked = np.ma.MaskedArray(data=data, mask=~mask)
         tfr_data = np.array(masked.mean(axis=0))
         if cluster_info['which'] == 'saliences':
-            clabel = 'Mean salience'
+            vlabel = 'Mean salience'
         elif cluster_info['which'] == 'z-scores':
-            clabel = 'Mean bootstrap ratio (z score)'
-        f, ax = tfr_image(template, tfr_data, clabel=clabel, ax=ax)
+            vlabel = 'Mean bootstrap ratio (z score)'
+        f, ax = tfr_image(template, tfr_data, vlabel=vlabel, ax=ax)
         
     return f, ax
 
