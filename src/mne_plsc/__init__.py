@@ -400,7 +400,7 @@ class PLSC():
         
         if signed == 'auto':
             if self.template.datatype == 'epo':
-                print('Defaulting to un-signed clustering for ERP/ERF analysis')
+                print('Defaulting to unsigned clustering for ERP/ERF analysis')
                 signed = False
             else:
                 signed = True
@@ -657,7 +657,7 @@ class PLSC():
                                      logx=logx,
                                      ax=ax)
         return out
-    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', non_chan_plot='masked-data', separate_figures='auto'):
+    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', nontopo_plot='auto', separate_figures='auto'):
         """
         Plot clusters of strong loadings. 
 
@@ -680,7 +680,6 @@ class PLSC():
         -------
         None
         """
-        
         lv_clusters = self.clusters[lv_idx]
         if lv_clusters['info']['which'] == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
@@ -703,19 +702,26 @@ class PLSC():
         if separate_figures == 'auto':
             separate_figures = len(cluster_idx) > 4
         if not separate_figures:
-            f, ax = plt.subplots(nrows=len(cluster_idx))
+            f, ax = plt.subplots(nrows=len(cluster_idx),
+                                 layout='constrained')
             if len(cluster_idx) == 1:
                 ax = [ax] # Make subscriptable for later on
+        # Determine how to plot the non-channel margin
+        if nontopo_plot == 'auto':
+            if self.template.datatype in ['epo', 'spec']:
+                nontopo_plot = 'butterfly'
+            elif self.template.datatype == 'tfr':
+                nontopo_plot = 'image'
         for i in cluster_idx:
             if separate_figures:
-                f, curr_ax = plt.subplots()
+                f, curr_ax = plt.subplots(layout='constrained')
             else:
                 curr_ax = ax[i]
             viz.plot_cluster(data=data,
                              template=self.template,
                              cluster=lv_clusters['clusters'][i],
                              cluster_info=lv_clusters['info'],
-                             non_chan_plot=non_chan_plot,
+                             nontopo_plot=nontopo_plot,
                              ax=curr_ax)
 
 class MCPLSC(PLSC):

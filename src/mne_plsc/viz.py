@@ -195,10 +195,10 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     ax.set_xlim((x[0], x[-1]))
     return f, ax
 
-def tfr_image(template, data, cbar=True, clabel=None, ax=None, vlim=None, ylabel='Frequency (Hz)', xlabel='Time (s)'):
+def tfr_image(template, data, cbar=True, vlabel=None, ax=None, vlim=None, ylabel='Frequency (Hz)', xlabel='Time (s)'):
+    f, ax = _get_ax(ax)
     if vlim is None:
         vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
-    f, ax = _get_ax(ax)
     # Determine if log-scale
     ratios = template.freqs[1:] / template.freqs[:-1]
     if np.allclose(ratios, ratios[0]):
@@ -221,7 +221,46 @@ def tfr_image(template, data, cbar=True, clabel=None, ax=None, vlim=None, ylabel
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     if cbar:
-        f.colorbar(im, ax=ax).set_label(clabel)
+        f.colorbar(im, ax=ax).set_label(vlabel)
+    return f, ax
+
+def chan_image(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
+    f, ax = _get_ax(ax)
+    if vlim is None:
+        vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
+    # Determine xdata
+    if template.datatype == 'epo':
+        xdata = template.times
+        xlabel = 'Time (s)'
+    elif template.datatype == 'spec':
+        xdata = template.freqs
+        xlabel = 'Frequency (Hz)'
+    ydata = np.arange(template.info['nchan'])
+    # Draw bounding box
+    in_bounds = (~data.mask).sum(axis=0) > 0
+    start, end = get_1d_lims(in_bounds)
+    ax.axvline(xdata[start], c='k', ls=':')
+    ax.axvline(xdata[end], c='k', ls=':')
+    # Plot masked data
+    im = ax.pcolormesh(xdata,
+                       ydata,
+                       data, # Masked array
+                       cmap='RdBu_r',
+                       vmin=vlim[0],
+                       vmax=vlim[1])
+    # Draw contours
+    ax.contour(xdata,
+               ydata,
+               data.mask,
+               levels=[0.5],
+               corner_mask=False,
+               antialiased=False,
+               colors=['k'])
+    ax.set(yticks=ydata)
+    ax.set(yticklabels=template.info['ch_names'])
+    ax.set_xlabel(xlabel)
+    if cbar:
+        f.colorbar(im, ax=ax).set_label(vlabel)
     return f, ax
 
 def get_spatial_colours(info):
@@ -313,29 +352,31 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
         ax.set_xscale('log')
     return f, ax
 
-def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
+def plot_cluster(data, template, cluster, cluster_info, nontopo_plot, ax=None):
     f, ax = _get_ax(ax)
     data = data.reshape(template.shape)
-    # Go from linear indices to nd mask
+    # Go from linear indices to ndarray mask
     mask = np.zeros(template.shape, dtype=np.bool)
     mask.flat[cluster['idx']] = True
     # Divide into sub-axes
     sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=ax.get_subplotspec())
     ax.remove()
-    # Left panel: non-channel margin(s)
+    # Left panel: non-topo plot (i.e., non-channel margins)
     ax_left = f.add_subplot(sub_gs[0])
-    if non_chan_plot == 'masked-data':
-        if cluster_info['which'] == 'saliences':
-            ylabel = 'Salience'
-        elif cluster_info['which'] == 'z-scores':
-            ylabel = 'Bootstrap ratio (z score)'
-        f, ax_left = plot_cluster_nonchan_margin(data,
-                                                 template,
-                                                 mask,
-                                                 cluster_info,
-                                                 ylabel=ylabel,
-                                                 ax=ax_left)
-    elif non_chan_plot == 'density':
+    if nontopo_plot == 'butterfly':
+        plot_cluster_butterfly(data=data,
+                               template=template,
+                               mask=mask,
+                               which=cluster_info['which'],
+                               ythresh=cluster_info['threshold'],
+                               ax=ax_left)
+    elif nontopo_plot == 'image':
+        plot_cluster_image(data=data,
+                           template=template,
+                           mask=mask,
+                           which=cluster_info['which'],
+                           ax=ax_left)
+    elif nontopo_plot == 'density':
         plot_cluster_distribution(template,
                                   mask,
                                   ax=ax_left)
@@ -351,14 +392,78 @@ def plot_cluster(data, template, cluster, cluster_info, non_chan_plot, ax=None):
                                  mask=ch_mask, show=False)
     # Colorbar
     if cluster_info['which'] == 'saliences':
-        clabel = 'Mean salience in cluster'
+        vlabel = 'Mean salience in cluster bounds'
     elif cluster_info['which'] == 'z-scores':
-        clabel = 'Mean bootstrap ratio (z score) in cluster'
+        vlabel = 'Mean bootstrap ratio (z score) in cluster bounds'
     cbar = ax_right.figure.colorbar(im, shrink=0.6)
-    cbar.ax.set_ylabel(clabel)
+    cbar.ax.set_ylabel(vlabel)
     return f, (ax_left, ax_right)
 
-def plot_cluster_nonchan_margin(data, template, mask, cluster_info, ylabel=None, ax=None):
+def plot_cluster_butterfly(data, template, mask, which, ythresh, ax=None):
+    # Plot a cluster over non-channel margin(s)
+    f, ax = _get_ax(ax)
+    # Censor out-of-cluster data
+    masked = data.copy()
+    masked[~mask] = np.nan
+    # x axis is time or freq
+    if template.datatype == 'epo':
+        xdata = template.times
+        xlabel = 'Time (s)'
+    elif template.datatype == 'spec':
+        xdata = template.freqs
+        xlabel = 'Frequency (Hz)'
+    else:
+        raise ValueError('Butterfly plot not possible for datatype %s' % template.datatype)
+    # Determine how to label data
+    if which == 'saliences':
+        ylabel = 'Salience'
+    elif which == 'z-scores':
+        ylabel = 'Bootstrap ratio (z score)'
+    # Line plot with censor
+    channel_lineplot(xdata,
+                     masked,
+                     template.info,
+                     ythresh=ythresh,
+                     xlabel=xlabel,
+                     ylabel=ylabel,
+                     ax=ax)
+    # Draw bounding box
+    n_chan = mask.sum(axis=0)
+    start, end = get_1d_lims(n_chan > 0)
+    ax.axvline(xdata[start], c='k', ls=':')
+    ax.axvline(xdata[end], c='k', ls=':')
+    return f, ax
+
+def plot_cluster_image(data, template, mask, which, ax=None):
+    f, ax = _get_ax(ax)
+    if template.datatype in ['epo', 'spec']:
+        # Determine how to label data
+        if which == 'saliences':
+            vlabel = 'Salience'
+        elif which == 'z-scores':
+            vlabel = 'Bootstrap ratio (z score)'
+        # Mask
+        #chan_data = data.copy()
+        #chan_data[~mask] = 0
+        # Plot
+        chan_data = np.ma.MaskedArray(data=data, mask=~mask)
+        chan_image(template=template, data=chan_data, vlabel=vlabel, ax=ax)
+    if template.datatype == 'tfr':
+        # Compute average over data
+        masked = np.ma.MaskedArray(data=data, mask=~mask)
+        tfr_data = np.array(masked.mean(axis=0))
+        # Determine how to label data
+        if which == 'saliences':
+            vlabel = 'Mean salience'
+        elif which == 'z-scores':
+            vlabel = 'Mean bootstrap ratio (z score)'
+        f, ax = tfr_image(template=template,
+                          data=tfr_data,
+                          vlabel=vlabel,
+                          ax=ax)
+    return f, ax
+
+def plot_cluster_nontopo(data, template, mask, cluster_info, ylabel=None, ax=None):
     # Plot a cluster over non-channel margin(s)
     f, ax = _get_ax(ax)
     # Censor out-of-cluster data
@@ -393,7 +498,7 @@ def plot_cluster_nonchan_margin(data, template, mask, cluster_info, ylabel=None,
             clabel = 'Mean salience'
         elif cluster_info['which'] == 'z-scores':
             clabel = 'Mean bootstrap ratio (z score)'
-        tfr_image(template, tfr_data, clabel=clabel, ax=ax)
+        f, ax = tfr_image(template, tfr_data, clabel=clabel, ax=ax)
         
     return f, ax
 
