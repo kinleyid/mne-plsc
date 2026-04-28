@@ -235,6 +235,20 @@ class PLSC():
             else:
                 print('(none)')
     '''
+    def summary(self):
+        """
+        Summarize the model.
+
+        Returns
+        -------
+        :class:`pandas.DataFrame`
+            Data frame with one row per latent variable pair.
+        
+        Examples
+        --------
+        res.summary()
+        """
+        return self.model.summary()
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
         """
         Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`model.pvals_` attribute.
@@ -261,14 +275,54 @@ class PLSC():
         Examples
         --------
         >>> res.permute(n_perm=1000, n_jobs=-1)
+        >>> res.summary()
         >>> print(res.model.pvals_)
         """
-        
-        #: Null distribution
         self.null_dist = self.model.permute(n_perm=n_perm,
                                             n_jobs=n_jobs,
                                             print_prog=print_prog,
                                             return_null_dist=store_null_dist)
+    def bootstrap(self, n_boot=5000, confint_level=0.95, alignment_method='rotate-design-sals', return_boot_stat_dist=False, n_jobs=1, print_prog=True):
+        """
+        Perform (stratified) bootstrap resampling to assess the reliability of the data saliences.
+
+        Parameters
+        ----------
+        n_boot : int, optional
+            Number of bootstrap resamples to compute. The default is 5000.
+        confint_level : float, optional
+            The confidence level of the quantile-based confidence intervals to compute. The default is 0.95.
+        alignment_method : string, optional
+            Method to be used for aligning recomputed data saliences with original data saliences. Must be one of:
+            
+            - ``'rotate-design-sals'`` (default): Find the rotation that solves the orthogonal procrustes problem to align the recomputed and original design saliences, then apply this to the recomputed data saliences. This is the what is computed in the original Matlab version of PLS.
+            - ``'rotate-data-sals'``: Find the rotation that solves the orthogonal procrustes problem to align the recomputed and original data saliences, then apply this to the recomputed data saliences.
+            - ``'flip-design-sals'``: Find the set of sign flips that ensures the inner product of the recomputed and original design saliences are positive, then apply these sign flips to the recomputed data saliences.
+            - ``'flip-data-sals'``: Find the set of sign flips that ensures the inner product of the recomputed and original data saliences are positive, then apply these sign flips to the recomputed data saliences.
+            - ``'none'``: Perform no alignment.
+        return_boot_stat_dist : bool, optional
+            If ``True``, distribution of ``boot_stat`` from resampling is returned. This is the distribution used to compute quantile-based confidence intervals. Default is ``True``.
+        n_jobs : int, optional
+            Number of parallel jobs to deploy to compute permutations. -1 automatically deploys the maximum number of jobs. The default is 1.
+        print_prog : bool, optional
+            Specifies whether to display a progress bar. Default is ``True``.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+            If `return_boot_dist` is true, returns the bootstrap distribution of the statistic named by :attr:`model.boot_stat`
+
+        Examples
+        --------
+        >>> res.bootstrap(1000, n_jobs=-1)
+        >>> print(res.model.boot_stat_ci[..., 0]) # Print CI of boot_stat for first LV
+        """
+        self.model.bootstrap(n_boot=n_boot,
+                             confint_level=confint_level,
+                             alignment_method=alignment_method,
+                             return_boot_stat_dist=return_boot_stat_dist,
+                             n_jobs=n_jobs,
+                             print_prog=print_prog)
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         """
         Add adjacency matrix for clustering.
