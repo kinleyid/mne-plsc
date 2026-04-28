@@ -1,4 +1,5 @@
 
+import mne
 import numpy as np
 import pandas as pd
 
@@ -80,29 +81,32 @@ def infer_datatype(data):
     return datatype
 
 def is_epochs(data, datatype=None):
+    '''
     if datatype is None:
         datatype = infer_datatype(data)
     if datatype in ['epo', 'spec']:
         if data._data.ndim == 3:
-            val = True
+            out = True
         else:
-            val = False
+            out = False
     elif datatype == 'tfr':
         if data._data.ndim == 4:
-            val = True
+            out = True
         else:
-            val = False
-    return val
+            out = False
+    '''
+    out = '__len__' in dir(data) # Only epoch objects have a length
+    return out
 
 def get_datamat(data):
     # MNE object (or list thereof) to matrix
     # TODO: validation
     if isinstance(data, list):
         # Each element is a different participant-wise average
-        datamat = np.stack([item._data.flatten() for item in data])
+        datamat = np.stack([item.get_data().flatten() for item in data])
     else:
         # Single participant data
-        datamat = np.stack([epoch.flatten() for epoch in data._data])
+        datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
     return datamat
 
 def get_indicators(design=None, between=None, within=None, participant=None):

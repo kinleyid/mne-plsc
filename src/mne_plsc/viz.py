@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from matplotlib import cm, colors
 import matplotlib.patches as mpatches
+import matplotlib.ticker as mtick
 # import seaborn as sns
 
 from mne.viz.evoked import _rgb, _plot_legend
@@ -71,6 +72,12 @@ def score_scatterplot(df, grouping, ax=None):
         f.supxlabel('Design score')
         f.supylabel('Brain score')
         plt.tight_layout()
+    elif grouping == 'neither':
+        df.plot.scatter(x='design_score',
+                        y='data_score',
+                        xlabel='Design score',
+                        ylabel='Brain score',
+                        ax=ax)
     else:
         col = df[grouping].cat.codes.map(cm.tab10)
         df.plot.scatter(x='design_score',
@@ -99,7 +106,10 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
 
     def _pivot_and_plot(sub_df, index, columns, curr_ax):
         pivot_values = ['stat'] + (['L_CI', 'U_CI'] if with_ci else [])
-        pivoted = sub_df.pivot(index=index, columns=columns, values=pivot_values)
+        if index is None:
+            pivoted = sub_df.pivot(columns=columns, values=pivot_values)
+        else:
+            pivoted = sub_df.pivot(index=index, columns=columns, values=pivot_values)
         yerr = _compute_yerr(pivoted['stat'], pivoted.get('L_CI', {}), pivoted.get('U_CI', {})) if with_ci else None
         pivoted['stat'].plot.bar(yerr=yerr, ax=curr_ax)
         curr_ax.set_xlabel(None)
@@ -122,10 +132,20 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
                     legend.remove()
                 # Show x ticks only for last axis
                 if ax_idx < (len(groups) - 1):
-                    curr_ax.tick_params(axis='x', labelbottom=False)
+                    curr_ax.tick_params(axis='x',
+                                        bottom=False,
+                                        labelbottom=False)
         else:
-            ax = _pivot_and_plot(df, index=grouping, columns='covariate', curr_ax=ax)
+            if grouping == 'neither':
+                pivot_index = None
+            else:
+                pivot_index = grouping
+            ax = _pivot_and_plot(df, index=pivot_index, columns='covariate', curr_ax=ax)
             ax.get_legend().set_title(None)
+            # x ticks are not meaningful
+            ax.tick_params(axis='x',
+                           bottom=False,
+                           labelbottom=False)
         f.supylabel('Correlation with brain score')
     else:
         # MC PLS
@@ -241,6 +261,7 @@ def plot_lv_psd(template, data, axes):
 
 def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=None):
     f, ax = _get_ax(ax)
+    ax.axhline(0, color='k', linestyle='--')
     if which == 'pct-variance':
         total_variance = np.sum(singular_vals**2)
         singular_vals = 100*singular_vals**2/total_variance
@@ -256,7 +277,8 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
                marker='x')
     ax.set_xlabel('Latent variable pair index')
     if which == 'pct-variance':
-        ax.set_ylabel('Percent variance explained')
+        ax.set_ylabel('Variance explained')
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter())
     elif which == 'singular-val':
         ax.set_ylabel('Singular value')
     # Plot permutation distribution

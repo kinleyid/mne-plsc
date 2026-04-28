@@ -288,7 +288,7 @@ class PLSC():
         if all_channels_adjacent == 'auto':
             if self.template.datatype == 'epo':
                 all_channels_adjacent = True
-                print('Defaulting to all channels adjacent for ERP analysis')
+                print('Defaulting to all channels adjacent for ERP/ERF analysis')
             else:
                 all_channels_adjacent = False
         if all_channels_adjacent:
@@ -308,7 +308,7 @@ class PLSC():
         ----------
         which : str, optional
             Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be used for clustering. The default is `'saliences'`.
-        threshold : float, optional
+        threshold : float | callable, optional
             Saliences must be above this threshold to be part of a cluster. The default is ``None``, which uses the mean salience if ``which='saliences'`` and a value of 2 if ``which='z-scores'``.
         signed : bool, optional
             If ``True``, each cluster will contain only positive or only negative saliences. If ``False``, clusters can contain both positive and negative saliences. In ERP analysis, both positive and negative saliences could be considered part of the same component. The default is ``'auto'``, which is ``False`` for ERP analysis and ``True`` for other analyses.
@@ -333,17 +333,17 @@ class PLSC():
             if threshold is None:
                 # Average salience
                 threshold = np.mean
+        absdata = np.abs(data)
         if callable(threshold):
             threshold = np.apply_along_axis(func1d=threshold,
                                             axis=0,
-                                            arr=data)
+                                            arr=absdata)
         # In case threshold is a scalar, repeat per LV
         try:
             len(threshold)
         except:
             threshold = [threshold]*self.model.n_sv_
         
-        absdata = np.abs(data)
         if signed == 'auto':
             if self.template.datatype == 'epo':
                 signed = False
@@ -485,8 +485,7 @@ class PLSC():
         -------
         f, ax
             Figure and axes containing plot.
-        """
-        
+        """        
         df = self.model.get_boot_stat_frame(lv_idx)
         out = viz.boot_stat_barplot(df=df,
                                     boot_stat=self.model.boot_stat,
@@ -555,23 +554,24 @@ class PLSC():
 
         Parameters
         ----------
-        lv_idx : int
-            Index of latent variable pair for which the plot should be generated.
+        lv_idx : indexer
+            Index of latent variable pair(s) for which the plot should be generated.
         which : str, optional
             Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted in the right panel. The default is `'saliences'`.
 
         Returns
         -------
         f, ax
-            Figure and axes containing plot.
+            Figure and axes containing plots.
         """
         
-        f, ax = plt.subplots(nrows=1, ncols=2, width_ratios=[2, 3])
+        f, ax = plt.subplots(nrows=1, ncols=2,
+                             width_ratios=[2, 3],
+                             layout='constrained')
         self.plot_boot_stat(lv_idx, ax=ax[0])
         self.plot_brain_sals(lv_idx, ax=ax[1], which=which)
-        plt.tight_layout()
         return f, ax
-    def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', logx=False, ax=None):
+    def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, logx=False, ax=None):
         """
         Create a plot of cluster sizes from largest to smallest.
 
@@ -581,6 +581,8 @@ class PLSC():
             Index of latent variable pair for which cluster sizes should be plotted.
         size_measure: str, optional
             Specifies how cluster size should be measured. See :meth:`get_cluster_sizes`. The default is `'pct-strong'`.
+        n_clust : ``int``, optional
+            Number of clusters, starting from largest, to plot. Default is ``None``, which displays all clusters.
         logx : bool, optional
             If ``True``, x axis will be on a log scale. Default is ``False``.
         ax : instance of Matplotlib Axes, optional
@@ -593,6 +595,8 @@ class PLSC():
         """
         cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
                                                size_measure=size_measure)
+        if n_clust is not None:
+            cluster_sizes = cluster_sizes[:n_clust]
         out = viz.plot_cluster_sizes(cluster_sizes=cluster_sizes,
                                      size_measure=size_measure,
                                      logx=logx,
@@ -753,9 +757,9 @@ class Template():
             source = source[0]
         self.datatype = utils.infer_datatype(source)
         if utils.is_epochs(source, datatype=self.datatype):
-            self.shape = source._data.shape[1:]
+            self.shape = source.get_data().shape[1:]
         else:
-            self.shape = source._data.shape
+            self.shape = source.get_data().shape
         self.size = np.prod(self.shape)
         dimnames = {
             'epo': ('chan', 'time'),

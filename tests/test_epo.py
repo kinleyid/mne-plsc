@@ -4,6 +4,7 @@ import mne
 import mne_plsc
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg', force=True)
@@ -70,21 +71,66 @@ def test_mc_within(sample_data):
                                  random_state=123)
     run_result_methods(result)
 
+def test_beh_args(sample_data):
+    # Test different methods of providing data
+    data, covariates, between, within, participant = sample_data
+    mne_plsc.fit_beh(data=data,
+                     covariates=covariates[:, 0],
+                     random_state=123)
+    design = pd.DataFrame(covariates,
+                          columns=['cov1', 'cov2'])
+    design['group'] = between
+    design['cond'] = within
+    design['ptpt'] = participant
+    mne_plsc.fit_beh(data=data,
+                     design=design,
+                     covariates='cov1',
+                     between='group',
+                     within='cond',
+                     participant='ptpt',
+                     random_state=123)
+    mne_plsc.fit_beh(data=data,
+                     covariates=design['cov1'],
+                     between=design['group'],
+                     within=design['cond'],
+                     participant=design['ptpt'],
+                     random_state=123)
+
+def test_mc_args(sample_data):
+    # Test different methods of providing data
+    data, covariates, between, within, participant = sample_data
+    design = pd.DataFrame(covariates,
+                          columns=['cov1', 'cov2'])
+    design['group'] = between
+    design['cond'] = within
+    design['ptpt'] = participant
+    mne_plsc.fit_mc(data=data,
+                    design=design,
+                    between='group',
+                    within='cond',
+                    participant='ptpt',
+                    random_state=123)
+    mne_plsc.fit_mc(data=data,
+                    between=design['group'],
+                    within=design['cond'],
+                    participant=design['ptpt'],
+                    random_state=123)
+
 def test_beh_both(sample_data):
     data, covariates, between, within, participant = sample_data
     result = mne_plsc.fit_beh(data=data,
-                                  covariates=covariates,
-                                  between=between,
-                                  within=within,
-                                  participant=participant,
-                                  random_state=123)
+                              covariates=covariates,
+                              between=between,
+                              within=within,
+                              participant=participant,
+                              random_state=123)
     run_result_methods(result)
     
 def test_beh_within(sample_data):
     data, covariates, between, within, participant = sample_data
     result = mne_plsc.fit_beh(data=data,
-                                  covariates=covariates,
-                                  within=within,
-                                  participant=participant,
-                                  random_state=123)
+                              covariates=covariates,
+                              within=within,
+                              participant=participant,
+                              random_state=123)
     run_result_methods(result)
