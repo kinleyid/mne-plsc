@@ -352,7 +352,7 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
         ax.set_xscale('log')
     return f, ax
 
-def plot_cluster(data, template, cluster, cluster_info, nontopo_plot, ax=None):
+def plot_cluster(data, template, cluster, cluster_info, plot_type, ax=None):
     f, ax = _get_ax(ax)
     data = data.reshape(template.shape)
     # Go from linear indices to ndarray mask
@@ -363,20 +363,20 @@ def plot_cluster(data, template, cluster, cluster_info, nontopo_plot, ax=None):
     ax.remove()
     # Left panel: non-topo plot (i.e., non-channel margins)
     ax_left = f.add_subplot(sub_gs[0])
-    if nontopo_plot == 'butterfly':
+    if plot_type == 'butterfly':
         plot_cluster_butterfly(data=data,
                                template=template,
                                mask=mask,
                                which=cluster_info['which'],
                                ythresh=cluster_info['threshold'],
                                ax=ax_left)
-    elif nontopo_plot == 'image':
+    elif plot_type == 'image':
         plot_cluster_image(data=data,
                            template=template,
                            mask=mask,
                            which=cluster_info['which'],
                            ax=ax_left)
-    elif nontopo_plot == 'density':
+    elif plot_type == 'density':
         plot_cluster_distribution(template,
                                   mask,
                                   ax=ax_left)

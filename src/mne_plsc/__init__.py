@@ -657,7 +657,7 @@ class PLSC():
                                      logx=logx,
                                      ax=ax)
         return out
-    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', nontopo_plot='auto', separate_figures='auto'):
+    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', plot_type='auto', separate_figures='auto'):
         """
         Plot clusters of strong loadings. 
 
@@ -707,21 +707,21 @@ class PLSC():
             if len(cluster_idx) == 1:
                 ax = [ax] # Make subscriptable for later on
         # Determine how to plot the non-channel margin
-        if nontopo_plot == 'auto':
+        if plot_type == 'auto':
             if self.template.datatype in ['epo', 'spec']:
-                nontopo_plot = 'butterfly'
+                plot_type = 'butterfly'
             elif self.template.datatype == 'tfr':
-                nontopo_plot = 'image'
-        for i in cluster_idx:
+                plot_type = 'image'
+        for ax_i, clust_i in enumerate(cluster_idx):
             if separate_figures:
                 f, curr_ax = plt.subplots(layout='constrained')
             else:
-                curr_ax = ax[i]
+                curr_ax = ax[ax_i]
             viz.plot_cluster(data=data,
                              template=self.template,
-                             cluster=lv_clusters['clusters'][i],
+                             cluster=lv_clusters['clusters'][clust_i],
                              cluster_info=lv_clusters['info'],
-                             nontopo_plot=nontopo_plot,
+                             plot_type=plot_type,
                              ax=curr_ax)
 
 class MCPLSC(PLSC):
