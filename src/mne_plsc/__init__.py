@@ -571,11 +571,11 @@ class PLSC():
         if which == 'z-scores':
             data = self.model.data_sals_z_[:, lv_idx]
             ylabel = 'z score'
-            clabel = 'Mean z score'
+            vlabel = 'Mean z score'
         elif which == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
             ylabel = 'Salience'
-            clabel = 'Mean salience'
+            vlabel = 'Mean salience'
         data = data.reshape(self.template.shape)
         if self.template.datatype in ['epo', 'spec']:
             # Line plot with spatial colours
@@ -601,7 +601,7 @@ class PLSC():
             tf_data = data.mean(axis=0)
             viz.tfr_image(template=self.template,
                           data=tf_data,
-                          clabel=clabel,
+                          vlabel=vlabel,
                           ax=ax)
     def plot_lv(self, lv_idx, which='saliences'):
         """
