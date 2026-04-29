@@ -1,6 +1,6 @@
 
-Functions for fitting models
-============================
+Model fitting
+=============
 
 .. toctree::
    :maxdepth: 1
