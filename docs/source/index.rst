@@ -22,6 +22,7 @@ Installation
    :maxdepth: 1
    :caption: Contents:
 
+   examples
    fitting/fitting
    utils/utils
    classes/classes

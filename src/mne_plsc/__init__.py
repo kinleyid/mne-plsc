@@ -729,7 +729,7 @@ class MCPLSC(PLSC):
     Mean-centred PLSC
     """
     
-    def get_marginal_brain_scores(self, lv_idx, margin):
+    def get_marginal_brain_scores(self, lv_idx, margin, average=True):
         """
         Compute marginal brain scores per condition across a specified margin. This generalizes the notion temporal brain scores from the original Matlab PLS.
 
@@ -744,6 +744,8 @@ class MCPLSC(PLSC):
             - ``'time'``: time (computes temporal brain scores)
             - ``'freq'``: frequency
             - ``'time-freq'``: both time and frequency
+        average : bool
+            Specifies whether condition-wise averages should be computed.
 
         Notes
         -----
@@ -771,10 +773,11 @@ class MCPLSC(PLSC):
 
         # Compute hadamard products
         loadings = self.model.data_sals_[:, lv_idx]
-        groupwise_means = pyplsc.utils.get_groupwise_means(
-            data=self.model.data_,
-            group_idx=self.model.stratifier_)
-        hadamards = groupwise_means * loadings
+        hadamards = self.model.data_ * loadings
+        if average:
+            hadamards = pyplsc.utils.get_groupwise_means(
+                data=hadamards,
+                group_idx=self.model.stratifier_)
         # Reshape
         hadamards = [h.reshape(self.template.shape) for h in hadamards]
         # Identify axes to average over
@@ -799,7 +802,9 @@ class MCPLSC(PLSC):
             Figure and axes containing plot.
         """
         
-        scores = self.get_marginal_brain_scores(lv_idx=lv_idx, margin=margin)
+        scores = self.get_marginal_brain_scores(lv_idx=lv_idx,
+                                                margin=margin,
+                                                average=True)
         labels = self.model.design_sal_labels_
         out = viz.plot_marginal_brain_scores(scores=scores,
                                              margin=margin,
