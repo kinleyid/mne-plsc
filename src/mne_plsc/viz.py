@@ -393,7 +393,9 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
 
 def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=None):
     f, ax = _get_ax(ax)
-    ax.plot(cluster_sizes)
+    x = np.arange(len(cluster_sizes))
+    ax.plot(x, cluster_sizes)
+    ax.scatter(x, cluster_sizes)
     ax.set_xlabel('Cluster index')
     if size_measure == 'absolute':
         ax.set_ylabel('Cluster size (n. neural variables)')
@@ -421,54 +423,50 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
     elif highlight == 'extent':
         vlabel = 'mean %s in cluster extent' % which
     vlabel = vlabel.capitalize()
+    if highlight == 'extent':
+        # Get spatial data within cluster extent
+        extent = utils.get_cluster_extent(cluster['mask'])
+        spatial_data = data[:, extent].mean(axis=-1)
+        # Highlight all channels that are ever in the cluster
+        spatial_mask = cluster['mask'].sum(axis=-1) > 0
+    elif highlight == 'peak':
+        # Get spatial data at non-spatial peak
+        peak_coords = cluster['peak'][1:] # skip spatial dimension
+        spatial_data = data[:, peak_coords].mean(axis=-1)
+        # Highlight channels that are in the cluster at the peak
+        spatial_mask = cluster['mask'][:, peak_coords].squeeze()
     if template.space == 'sensor':
-        if highlight == 'extent':
-            # Get spatial data within cluster extent
-            extent = utils.get_cluster_extent(cluster['mask'])
-            topo_data = data[:, extent].mean(axis=-1)
-            # Highlight all channels that are ever in the cluster
-            ch_in_clust = cluster['mask'].sum(axis=-1) > 0
-        elif highlight == 'peak':
-            # Get spatial data at non-spatial peak
-            peak_coords = cluster['peak'][1:] # skip spatial dimension
-            topo_data = data[:, peak_coords].mean(axis=-1)
-            # Highlight channels that are in the cluster at the peak
-            ch_in_clust = cluster['mask'][:, peak_coords].squeeze()
-        im, _ = mne.viz.plot_topomap(topo_data,
-                                     template.info,
+        im, _ = mne.viz.plot_topomap(data=spatial_data,
+                                     info=template.info,
                                      axes=ax,
-                                     mask=ch_in_clust,
+                                     mask=spatial_mask,
                                      show=False)
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
         cbar.ax.set_ylabel(vlabel)
-    elif template.space == 'source':
-        plot_type = 'peak'
-        if plot_type == 'peak':
-            # Get nifti1 image
-            vert_peak, time_peak = peak
-            # Censor non-cluster points
-            masked = data.copy()
-            masked[~mask] = np.nan
-            stc = mne.VolSourceEstimate(
-                data=masked[:, time_peak],
-                vertices=[template.vertices],
-                tmin=0.0,
-                tstep=1,
-                subject=template.subject
-            )
-            vol = stc.as_volume(src=template.src)
-            # Remove time dimension
-            vol = image.index_img(vol, 0)
-            # Display image
-            plotting.plot_stat_map(vol,
-                                   bg_img=template.t1,
-                                   symmetric_cbar=True,
-                                   axes=ax)
-            # Label colorbar
-            cbar_ax = f.get_axes()[-1]
-            cbar_ax.set_ylabel(vlabel, color='white')
-            print(vlabel)
+    elif template.datatype == 'vol-stc':
+        spatial_data = spatial_data.reshape((-1, 1))
+        spatial_data[~spatial_mask] = np.nan
+        # Create volume
+        stc = mne.VolSourceEstimate(
+            data=spatial_data,
+            vertices=[template.vertices],
+            tmin=0.0,
+            tstep=1,
+            subject=template.subject
+        )
+        vol = stc.as_volume(src=template.src)
+        # Remove time dimension
+        vol = image.index_img(vol, 0)
+        # Display image
+        plotting.plot_stat_map(vol,
+                               bg_img=template.t1,
+                               symmetric_cbar=True,
+                               draw_cross=False,
+                               axes=ax)
+        # Label colorbar
+        cbar_ax = f.get_axes()[-1]
+        cbar_ax.set_ylabel(vlabel, color='white')
     return f, ax
     
 def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, ax=None):
