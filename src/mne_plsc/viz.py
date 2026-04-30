@@ -446,6 +446,15 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
         cbar.ax.set_ylabel(vlabel)
+    elif template.datatype == 'surf-stc':
+        spatial_data = spatial_data.reshape((-1, 1))
+        spatial_data[~spatial_mask] = np.nan
+        stc = mne.SourceEstimate(data=spatial_data,
+                                 vertices=template.vertices,
+                                 tmin=0, tstep=1,
+                                 subject=template.subject) # TODO: does this make sense in general?
+        stc.plot(subjects_dir='C:/Users/isaac/mne_data/MNE-sample-data/subjects',
+                 time_viewer=False)
     elif template.datatype == 'vol-stc':
         spatial_data = spatial_data.reshape((-1, 1))
         spatial_data[~spatial_mask] = np.nan
@@ -453,8 +462,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
         stc = mne.VolSourceEstimate(
             data=spatial_data,
             vertices=template.vertices,
-            tmin=0.0,
-            tstep=1,
+            tmin=0, tstep=1,
             subject=template.subject
         )
         vol = stc.as_volume(src=template.src)
@@ -541,7 +549,7 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
         if template.space == 'sensor':
             ydata = ydata = np.arange(template.info['nchan'])
         elif template.space == 'source':
-            ydata = np.arange(len(template.vertices))
+            ydata = np.arange(sum(len(verts) for verts in template.vertices))
         im = ax.pcolormesh(xdata,
                            ydata,
                            masked,

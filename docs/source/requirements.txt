@@ -2,3 +2,4 @@ mne-plsc
 nbsphinx
 ipykernel
 pydata-sphinx-theme
+pyqt5

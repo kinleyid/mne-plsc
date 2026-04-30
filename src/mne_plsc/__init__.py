@@ -324,8 +324,14 @@ class PLSC():
                              return_boot_stat_dist=return_boot_stat_dist,
                              n_jobs=n_jobs,
                              print_prog=print_prog)
-    def add_src(self, src, t1):
-        self.template.set_src(src, t1)
+    def add_source_info(self, src=None, t1=None, subjects_dir=None):
+        # TODO: document
+        if src is not None:
+            self.template.src = src
+        if t1 is not None:
+            self.template.t1 = t1
+        if subjects_dir is not None:
+            self.template.subjects_dir = subjects_dir
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         """
         Add adjacency matrix for clustering.
@@ -364,6 +370,7 @@ class PLSC():
         elif self.template.space == 'source':
             if self.template.src is None:
                 raise ValueError('Source space must be specified to compute spatial adjacency. See add_src()')
+            # TODO: other options for surface source spaces
             spatial_adj = mne.spatial_src_adjacency(self.template.src)
         dim_adjs = (spatial_adj,) + self.template.shape[1:]
         self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
@@ -484,7 +491,7 @@ class PLSC():
         """
         lv_clusters = self.clusters[lv_idx]
         info = lv_clusters['info']
-        # Get data used for clustering
+        # Get data used for clustering, reshaped
         if info['which'] == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
         elif info['which'] == 'z-scores':
@@ -497,6 +504,18 @@ class PLSC():
         mask.flat[cluster['idx']] = True
         cluster['mask'] = mask
         return data, cluster, info
+    def cluster_to_stc(self, lv_idx, cluster_idx):
+        data, cluster, _ = self.get_cluster_data(lv_idx, cluster_idx)
+        data = data.copy()
+        data[~cluster['mask']] = 0
+        times = self.template.times * 1000 # s to ms
+        tstep = np.diff(times)[0]
+        stc = mne.SourceEstimate(data=data,
+                                 vertices=self.template.vertices,
+                                 tmin=times[0],
+                                 tstep=tstep,
+                                 subject=self.template.subject) # TODO: does this make sense in general?
+        return stc
     def get_cluster_sizes(self, lv_idx, size_measure='pct-strong'):
         """
         Get sizes of clusters.
@@ -750,6 +769,7 @@ class PLSC():
             elif self.template.datatype in ['surf-stc', 'vol-stc']:
                 plot_type = 'distribution'
         data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+        # TODO: fail gracefully in case of mismatch between datatype and plot_type
         if plot_type == 'butterfly':
             out = viz.plot_cluster_butterfly(data=data,
                                              template=self.template,
@@ -772,7 +792,7 @@ class PLSC():
                                                 ax=ax)
         return out
       
-    def plot_cluster_spatial(self, lv_idx, cluster_idx, highlight='peak', plot_type='auto', ax=None):
+    def plot_cluster_spatial(self, lv_idx, cluster_idx, highlight='peak', ax=None):
         """
         Plot cluster across spatial dimension of data (sensors or sources).
 
@@ -784,12 +804,6 @@ class PLSC():
             Index of cluster.
         highlight : str, optional
             See ``highlight`` arg to :meth:`plot_clusters`
-        nonspatial_plot_type : str, optional
-            Specifies how to plot the non-spatial data. Must be one of:
-                
-            - ``'auto'`` (default): Makes a sensible choice given the datatype provided.
-            - ``'butterfly'``: Creates a butterfly plot (coloured line plot per channel)
-            - ``''
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -799,14 +813,26 @@ class PLSC():
             DESCRIPTION.
         """
         
-        data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
-        # TODO: set plot_type if auto
-        out = viz.plot_cluster_spatial(data=data,
-                                       template=self.template,
-                                       cluster=cluster,
-                                       cluster_info=info,
-                                       highlight=highlight,
-                                       ax=ax)
+        if self.template.datatype == 'surf-stc':
+            # Interactive surface plot
+            # Determine whether cluster peak is in left or right hemisphere
+            peak_vert, _ = self.clusters[lv_idx]['clusters'][cluster_idx]['peak']
+            if peak_vert < self.template.vertices[0].size:
+                hemi = 'lh'
+            else:
+                hemi = 'rh'
+            # Generate interactive plot
+            stc = self.cluster_to_stc(lv_idx, cluster_idx)
+            out = stc.plot(subjects_dir=self.template.subjects_dir,
+                           hemi=hemi)
+        else:
+            data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+            out = viz.plot_cluster_spatial(data=data,
+                                           template=self.template,
+                                           cluster=cluster,
+                                           cluster_info=info,
+                                           highlight=highlight,
+                                           ax=ax)
         return out
     def plot_cluster(self, lv_idx, cluster_idx, size_measure='pct-strong', highlight='peak', plot_type='auto'):
         """
@@ -839,21 +865,24 @@ class PLSC():
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         # Default to manually specified cluster_idx
         f, curr_ax = plt.subplots(layout='constrained')
-        # Subdivide into left and right axis
-        sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
-        curr_ax.remove()
-        # Left axis: visualize non-spatial dimension(s)
-        ax_left = f.add_subplot(sub_gs[0])
-        self.plot_cluster_nonspatial(lv_idx=lv_idx,
-                                     cluster_idx=cluster_idx,
-                                     plot_type=plot_type,
-                                     highlight=highlight,
-                                     ax=ax_left)
-        ax_right = f.add_subplot(sub_gs[1])
-        self.plot_cluster_spatial(lv_idx=lv_idx,
-                                  cluster_idx=cluster_idx,
-                                  highlight=highlight,
-                                  ax=ax_right)
+        if self.template.datatype == 'surf-stc':
+            raise ValueError('Spatial and non-spatial cluster visualizations cannot be shown in the same figure. Call .plot_cluster_nonspatial() and .plot_cluster_spatial() separately.')
+        else:
+            # Subdivide into left and right axis
+            sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
+            curr_ax.remove()
+            # Left axis: visualize non-spatial dimension(s)
+            ax_left = f.add_subplot(sub_gs[0])
+            self.plot_cluster_nonspatial(lv_idx=lv_idx,
+                                         cluster_idx=cluster_idx,
+                                         plot_type=plot_type,
+                                         highlight=highlight,
+                                         ax=ax_left)
+            ax_right = f.add_subplot(sub_gs[1])
+            self.plot_cluster_spatial(lv_idx=lv_idx,
+                                      cluster_idx=cluster_idx,
+                                      highlight=highlight,
+                                      ax=ax_right)
 
 class MCPLSC(PLSC):
     """
@@ -985,7 +1014,8 @@ class Template():
         for attr in ['times', 'freqs', 'subject']:
             if attr in dir(source):
                 setattr(self, attr, getattr(source, attr))
-    def set_src(self, src, t1):
+    def set_src(self, src):
         # TODO: validate
         self.src = src
+    def set_t1(self, t1):
         self.t1 = t1

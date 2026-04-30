@@ -7,5 +7,5 @@ Examples
 
    notebooks/mc-erp
    notebooks/beh-erp
-   notebooks/plot-clusts-sensor
+   notebooks/plot-sensor-clusters
    notebooks/mc-vs-ems
