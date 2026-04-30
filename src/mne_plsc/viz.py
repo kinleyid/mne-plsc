@@ -511,13 +511,13 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
         # Get spatial data within cluster extent
         extent, _ = utils.get_cluster_extent(cluster['mask'])
         spatial_data = data[:, extent].mean(axis=-1)
-        # Highlight all channels that are ever in the cluster
+        # Highlight all spatial locations that are ever in the cluster
         spatial_mask = cluster['mask'].sum(axis=-1) > 0
     elif highlight == 'peak':
         # Get spatial data at non-spatial peak
         peak_coords = cluster['peak'][1:] # skip spatial dimension
         spatial_data = data[:, *peak_coords]
-        # Highlight channels that are in the cluster at the peak
+        # Highlight spatial locations that are in the cluster at the peak
         spatial_mask = cluster['mask'][:, *peak_coords]
     if template.space == 'sensor':
         im, _ = mne.viz.plot_topomap(data=spatial_data,
@@ -607,11 +607,15 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
 def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
     ydim, xdim = template.dimnames[-2:]
+    if which == 'saliences':
+        data_desc = 'salience'
+    elif which == 'z-scores':
+        data_desc = 'bootstrap ratio (z score)'
     if template.datatype == 'tfr':
         masked = masked.mean(axis=0)
-        vlabel = 'Mean'
+        vlabel = 'Mean %s over channels in cluster' % data_desc
     else:
-        vlabel = 'Raw'
+        vlabel = data_desc.capitalize()
     # Get data for raster plot
     xdata, ydata, xlabel, ylabel = get_raster_data(template, data, xdim, ydim)
     # Highlight extent behind cluster
@@ -644,94 +648,6 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     if highlight != 'none':
         ax.legend(handles=[handle],
                   loc='upper right')
-
-"""
-def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
-    f, ax = _get_ax(ax)
-    if template.ndim == 2: # 1 spatial, 1 non-spatial dimension
-        # Determine how to label data
-        if which == 'saliences':
-            vlabel = 'Salience'
-        elif which == 'z-scores':
-            vlabel = 'Bootstrap ratio (z score)'
-        # Determine non-spatial dimension
-        nonspatial_dim = template.dimnames[1]
-        if nonspatial_dim == 'time':
-            xdata = template.times
-            xlabel = 'Time (s)'
-        elif nonspatial_dim == 'freq':
-            xdata = template.freqs
-            xlabel = 'Frequency (Hz)'
-        # Mask
-        masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
-        # Show extent
-        if highlight == 'extent':
-            plot_cluster_extent(xdata, cluster, ax)
-        # Plot
-        vlim = np.abs(data).max()
-        xdata = template.times
-        if template.space == 'sensor':
-            ydata = ydata = np.arange(template.info['nchan'])
-        elif template.space == 'source':
-            ydata = np.arange(sum(len(verts) for verts in template.vertices))
-        im = ax.pcolormesh(xdata,
-                           ydata,
-                           masked,
-                           cmap='RdBu_r',
-                           vmin=-vlim,
-                           vmax=vlim)
-        # Draw contours
-        ax.contour(xdata,
-                   ydata,
-                   cluster['mask'],
-                   levels=[0.5],
-                   corner_mask=False,
-                   antialiased=False,
-                   linewidths=0.25,
-                   colors=['k'])
-        # Plot peak
-        if highlight == 'peak':
-            peak_ch = cluster['peak'][0]
-            peak_t = xdata[cluster['peak'][1]]
-            ax.scatter(peak_t, peak_ch,
-                       c='white', edgecolors='black',
-                       label='Cluster peak')
-        # Annotate highlight
-        if highlight != 'none':
-            ax.legend()
-        # Labels for y axis
-        if template.space == 'sensor':
-            ydata = np.arange(template.info['nchan'])
-            ax.set(yticks=ydata)
-            ax.set(yticklabels=template.info['ch_names'])
-        elif template.space == 'source':
-            ax.set_ylabel('Source index')
-        # Labels for x axis
-        nonspace_dim = template.dimnames[1]
-        if nonspace_dim == 'time':
-            ax.set_xlabel('Time (s)')
-        elif nonspace_dim == 'freq':
-            ax.set_xlabel('Frequency (Hz)')
-        # Colorbar
-        f.colorbar(im, ax=ax).set_label(vlabel)
-    else: # 2 non-spatial dimensions (time and freq)
-        # Compute average over spatial dimension
-        set_trace()
-        masked = np.ma.MaskedArray(data=data,
-                                   mask=~cluster['mask'])
-        tfr_data = np.array(masked.mean(axis=0))
-        # Determine how to label data
-        if which == 'saliences':
-            vlabel = 'Mean salience in cluster'
-        elif which == 'z-scores':
-            vlabel = 'Mean bootstrap ratio (z score) in cluster extent'
-        f, ax = tfr_image(template=template,
-                          data=tfr_data,
-                          vlabel=vlabel,
-                          ax=ax)
-    return f, ax
-"""
-
 
 def get_nonspatial_dim(template):
     nonspatial_dim = template.dimnames[1]
