@@ -203,6 +203,9 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     ax.set_ylabel(ylabel)
     # Ensure full x range is displayed
     ax.set_xlim((x[0], x[-1]))
+    # Check for log scale (e.g. for frequency)
+    xscale = _check_log_scale(x)
+    ax.set_xscale(xscale)
     return f, ax
 
 def _check_log_scale(data):
@@ -305,44 +308,20 @@ def get_raster_data(template, data, xdim, ydim):
     
     return xdata, ydata, xlabel, ylabel
     
-    if template.ndim == 2:
-        # One non-spatial dimension
-        vdata = data
-        if template.dimnames[1] == 'time':
-            xdata = template.times
-            xlabel = 'Time (s)'
-        elif template.dimnames[1] == 'freq':
-            xdata = template.freqs
-            xlabel = 'Frequency (Hz)'
-        if template.space == 'sensor':
-            ydata = np.arange(template.info['nchan'])
-            ylabel = None
-        elif template.space == 'source':
-            n_vert = sum(len(v) for v in template.vertices)
-            ydata = np.arange(n_vert)
-            ylabel = 'Source index'
-    elif template.ndim == 3:
-        vdata = data.mean(axis=-1)
-        # Assume time-frequency
-        xdata = template.times
-        xlabel = 'Time (s)'
-        ydata = template.freqs
-        ylabel = 'Frequency (Hz)'
-    data = (xdata, ydata, vdata)
-    return data, xlabel, ylabel
-
-def plot_raster(template, data, xdim, ydim, vlabel, ax):
-    f, ax = _get_ax(ax)
+def plot_raster(template, data, xdim, ydim, vlabel, vlim=None, ax=None, cbar=True):
     xdata, ydata, xlabel, ylabel = get_raster_data(template, data, xdim, ydim)
-    out = _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, ax)
+    out = _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, vlim, ax, cbar)
     return out
    
-def _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, ax):
-    vlim = np.abs(data).max()
+def _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, vlim=None, ax=None, cbar=True):
+    f, ax = _get_ax(ax)
+    if vlim is None:
+        vma = np.abs(data).max()
+        vlim = (-vma, vma)
     im = ax.pcolormesh(xdata, ydata, data,
                        cmap='RdBu_r',
-                       vmin=-vlim,
-                       vmax=vlim)
+                       vmin=vlim[0],
+                       vmax=vlim[1])
     # Set axis scales
     xscale = _check_log_scale(xdata)
     ax.set_xscale(xscale)
@@ -357,8 +336,9 @@ def _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, ax):
     else:
         ax.set_ylabel(ylabel)
     # Colorbar and label
-    f = ax.figure
-    f.colorbar(im, ax=ax).set_label(vlabel)
+    if cbar:
+        f = ax.figure
+        f.colorbar(im, ax=ax).set_label(vlabel)
     return f, ax
 
 def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
@@ -634,6 +614,7 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
                               vlabel=vlabel,
                               ax=ax)
     # Draw contours
+    """
     ax.contour(xdata,
                ydata,
                masked.mask,
@@ -641,6 +622,7 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
                corner_mask=False,
                antialiased=False,
                colors=['k'])
+    """
     # Highlight peak in front of cluster
     if highlight == 'peak':
         ypeak, xpeak = cluster['peak'][-2:]
@@ -725,6 +707,9 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
             ax.legend()
             ax.set_ylabel('Brain score')
             ax.set_xlabel(xlabel)
+            # Check for log x scale
+            xscale = _check_log_scale(x)
+            ax.set_xscale(xscale)
     elif margin in ['chan', 'time-freq']:
         vlim = np.abs(np.stack(df['scores'])).max()
         # Set up axes---separate axis per condition
@@ -746,6 +731,7 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                     axes=curr_ax,
                     show=False)
             elif margin == 'time-freq':
+                """
                 tfr_image(template,
                           scores[idx],
                           ax=curr_ax,
@@ -753,6 +739,15 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                           vlim=(-vlim, vlim),
                           xlabel=None,
                           ylabel=None)
+                """
+                plot_raster(template,
+                            scores[idx],
+                            xdim='time',
+                            ydim='freq',
+                            vlabel=None,
+                            vlim=(-vlim, vlim),
+                            ax=curr_ax,
+                            cbar=False)
         # Shared colour bar
         cmap = cm.RdBu_r
         norm = colors.Normalize(vmin=-vlim, vmax=vlim)

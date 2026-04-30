@@ -784,11 +784,11 @@ class PLSC():
                                              ax=ax)
         elif plot_type == 'raster':
             out = viz.plot_cluster_raster(data=data,
-                                         template=self.template,
-                                         cluster=cluster,
-                                         which=info['which'],
-                                         highlight=highlight,
-                                         ax=ax)
+                                          template=self.template,
+                                          cluster=cluster,
+                                          which=info['which'],
+                                          highlight=highlight,
+                                          ax=ax)
         elif plot_type == 'distribution':
             out = viz.plot_cluster_distribution(self.template,
                                                 cluster=cluster,
