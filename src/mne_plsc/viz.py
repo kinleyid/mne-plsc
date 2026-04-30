@@ -439,7 +439,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
         spatial_mask = cluster['mask'][:, peak_coords].squeeze()
     if template.space == 'sensor':
         im, _ = mne.viz.plot_topomap(data=spatial_data,
-                                     info=template.info,
+                                     pos=template.info,
                                      axes=ax,
                                      mask=spatial_mask,
                                      show=False)
