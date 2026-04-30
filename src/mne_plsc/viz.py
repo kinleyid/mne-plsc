@@ -172,11 +172,22 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     spatial_cols = get_spatial_colours(info)
     # Plot lines
     for ch_idx in range(len(info['chs'])):
+        y = ch_y[ch_idx]
         ax.plot(x,
-                ch_y[ch_idx],
+                y,
                 color=spatial_cols[ch_idx],
                 linewidth=0.75,
                 alpha=0.8)
+        # Add scatter points when points become uncensored
+        if np.ma.is_masked(y):
+            padded = np.concatenate(([True], y.mask, [True]))
+            changes = np.nonzero(np.diff(padded.astype(int)))[0]
+            ax.scatter(x[changes],
+                       y[changes],
+                       c=spatial_cols[ch_idx],
+                       size=0.2)
+            set_trace()
+        rising_edges  = np.where(changes == 1)
     # Add space for sensor legend
     ylim = ax.get_ylim()
     ax.set_ylim((ylim[0], 1.6*ylim[1]))
