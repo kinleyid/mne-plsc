@@ -59,8 +59,8 @@ def fit_beh(data,
         PLSC object fit to the data.
     """
     
-    datamat = utils.get_datamat(data)
     template = Template(data)
+    datamat = utils.get_datamat(data, datatype=template.datatype)
     model = pyplsc.PLSC(boot_stat,
                         svd_method,
                         random_state)
@@ -721,7 +721,7 @@ class PLSC():
                                      logx=logx,
                                      ax=ax)
         return out
-    def plot_cluster_nonspatial(self, lv_idx, cluster_idx, highlight='peak', plot_type='auto', ax=None):
+    def plot_cluster_nonspatial(self, lv_idx, cluster_idx, highlight='none', plot_type='auto', ax=None):
         """
         SUMMARY.
 
@@ -784,6 +784,14 @@ class PLSC():
             Index of latent variable pair.
         cluster_idx : int
             Index of cluster.
+        highlight : str, optional
+            See ``highlight`` arg to :meth:`plot_clusters`
+        nonspatial_plot_type : str, optional
+            Specifies how to plot the non-spatial data. Must be one of:
+                
+            - ``'auto'`` (default): Makes a sensible choice given the datatype provided.
+            - ``'butterfly'``: Creates a butterfly plot (coloured line plot per channel)
+            - ``''
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -817,9 +825,16 @@ class PLSC():
         size_measure : str, optional
             Specifies the size measure to use when comparing cluster sizes to ``min_size``. See :meth:`get_cluster_sizes`. The default is ``'pct-strong'``. Ignored if ``cluster_idx`` is specified.
         highlight : str, optional
-            Must be one of ``'peak'`` or ``'extent'``. Default is ``'peak'``.
-        nonspatial_plot_type : TYPE, optional
-            DESCRIPTION. The default is ``'masked-data'``.
+            Specifies how to represent the cluster spatially. Must be one of:
+                
+            - ``'peak'`` (default): Plots the spatial data at the peak across the non-spatial dimensions.
+            - ``'extent'``:  Plots the spatial data averaged over the cluster extent over the non-spatial dimensions.
+        nonspatial_plot_type : str, optional
+            Specifies how to plot the non-spatial data. Must be one of:
+                
+            - ``'auto'`` (default): Makes a sensible choice given the datatype provided.
+            - ``'butterfly'``: Creates a butterfly plot (coloured line plot per channel)
+            - ``''
         separate_figures : bool, optional
             Specifies whether each cluster should be displayed in a separate figure. The default is ``'auto'``, which displays clusters in separate figures if there are more than 4.
 

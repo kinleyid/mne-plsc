@@ -401,25 +401,32 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
     elif cluster_info['which'] == 'z-scores':
         which = 'bootstrap ratio (z score)'
     if highlight == 'peak':
-        vlabel = '%s at cluster peak' % which
+        if template.ndim == 1:
+            peak_dims = template.dimnames[1]
+        else:
+            peak_dims = 'time and frequency'
+        vlabel = '%s at peak %s' % (which, peak_dims)
     elif highlight == 'extent':
         vlabel = 'mean %s in cluster extent' % which
     vlabel = vlabel.capitalize()
     if template.space == 'sensor':
-        # Get channels in mask to highlight
-        ch_mask = cluster['mask'].sum(axis=-1) > 0
         if highlight == 'extent':
             # Get spatial data within cluster extent
             extent = utils.get_cluster_extent(cluster['mask'])
             topo_data = data[:, extent].mean(axis=-1)
+            # Highlight all channels that are ever in the cluster
+            ch_in_clust = cluster['mask'].sum(axis=-1) > 0
         elif highlight == 'peak':
             # Get spatial data at non-spatial peak
             peak_coords = cluster['peak'][1:] # skip spatial dimension
             topo_data = data[:, peak_coords].mean(axis=-1)
+            # Highlight channels that are in the cluster at the peak
+            ch_in_clust = cluster['mask'][:, peak_coords].squeeze()
         im, _ = mne.viz.plot_topomap(topo_data,
                                      template.info,
                                      axes=ax,
-                                     mask=ch_mask, show=False)
+                                     mask=ch_in_clust,
+                                     show=False)
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
         cbar.ax.set_ylabel(vlabel)
@@ -714,7 +721,7 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
 def plot_cluster_extent(xdata, cluster, ax):
     in_extent = utils.get_cluster_extent(cluster['mask'])
     ax.fill_between(xdata, 0, 1, where=in_extent,
-                    color='gray',
+                    color='lightgray',
                     transform=ax.get_xaxis_transform(),
                     label='Cluster extent') # fill whole y axis
 
