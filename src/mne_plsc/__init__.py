@@ -810,7 +810,7 @@ class PLSC():
                                        highlight=highlight,
                                        ax=ax)
         return out
-    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', highlight='peak', nonspatial_plot_type='auto', separate_figures='auto'):
+    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', highlight='peak', plot_type='auto', separate_figures='auto'):
         """
         Plot clusters of strong loadings. 
 
@@ -829,7 +829,7 @@ class PLSC():
                 
             - ``'peak'`` (default): Plots the spatial data at the peak across the non-spatial dimensions.
             - ``'extent'``:  Plots the spatial data averaged over the cluster extent over the non-spatial dimensions.
-        nonspatial_plot_type : str, optional
+        plot_type : str, optional
             Specifies how to plot the non-spatial data. Must be one of:
                 
             - ``'auto'`` (default): Makes a sensible choice given the datatype provided.
@@ -843,11 +843,6 @@ class PLSC():
         None
         """
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
-        lv_clusters = self.clusters[lv_idx]
-        if lv_clusters['info']['which'] == 'saliences':
-            data = self.model.data_sals_[:, lv_idx]
-        elif lv_clusters['info']['which'] == 'z-scores':
-            data = self.model.data_sals_z_[:, lv_idx]
         # Default to manually specified cluster_idx
         if cluster_idx is None:
             # Plot all clusters above the min size
@@ -880,7 +875,7 @@ class PLSC():
             ax_left = f.add_subplot(sub_gs[0])
             self.plot_cluster_nonspatial(lv_idx=lv_idx,
                                          cluster_idx=clust_i,
-                                         plot_type=nonspatial_plot_type,
+                                         plot_type=plot_type,
                                          highlight=highlight,
                                          ax=ax_left)
             ax_right = f.add_subplot(sub_gs[1])
