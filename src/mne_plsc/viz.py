@@ -457,7 +457,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
                  time_viewer=False)
     elif template.datatype == 'vol-stc':
         spatial_data = spatial_data.reshape((-1, 1))
-        spatial_data[~spatial_mask] = np.nan
+        spatial_data[~spatial_mask] = 0
         # Create volume
         stc = mne.VolSourceEstimate(
             data=spatial_data,
