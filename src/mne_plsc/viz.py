@@ -401,7 +401,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
     elif cluster_info['which'] == 'z-scores':
         which = 'bootstrap ratio (z score)'
     if highlight == 'peak':
-        if template.ndim == 1:
+        if template.ndim == 2:
             peak_dims = template.dimnames[1]
         else:
             peak_dims = 'time and frequency'
