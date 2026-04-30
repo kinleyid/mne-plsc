@@ -207,11 +207,14 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
 
 def _check_log_scale(data):
     # Determine if log-scale
-    ratios = data[1:] / data[:-1]
-    if np.allclose(ratios, ratios[0]):
-        scale = 'log'
-    else:
+    if any(data == 0):
         scale = 'linear'
+    else:
+        ratios = data[1:] / data[:-1]
+        if np.allclose(ratios, ratios[0]):
+            scale = 'log'
+        else:
+            scale = 'linear'
     return scale
 
 def tfr_image(template, data, cbar=True, vlabel=None, ax=None, vlim=None, ylabel='Frequency (Hz)', xlabel='Time (s)'):
