@@ -107,7 +107,7 @@ def get_datamat(data, datatype):
     # MNE object (or list thereof) to matrix
     if isinstance(data, list):
         # Each element is a different participant-wise average
-        if datatype in ['suft-stc', 'vol-stc']:
+        if datatype in ['surf-stc', 'vol-stc']:
             get_data = lambda x: x.data
         else:
             get_data = lambda x: x.get_data()

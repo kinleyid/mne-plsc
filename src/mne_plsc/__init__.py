@@ -660,13 +660,11 @@ class PLSC():
                           data=tf_data,
                           vlabel=avg_label,
                           ax=ax)
-        elif self.template.datatype == 'vol-stc':
+        elif self.template.datatype in ['surf-stc', 'vol-stc']:
             viz.space_raster(template=self.template,
                              data=data,
                              vlabel=label,
                              ax=ax)
-        elif self.template.datatype == 'surf-stc':
-            raise NotImplementedError()
     def plot_lv(self, lv_idx, which='saliences'):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
@@ -810,18 +808,16 @@ class PLSC():
                                        highlight=highlight,
                                        ax=ax)
         return out
-    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', highlight='peak', plot_type='auto', separate_figures='auto'):
+    def plot_cluster(self, lv_idx, cluster_idx, size_measure='pct-strong', highlight='peak', plot_type='auto'):
         """
-        Plot clusters of strong loadings. 
+        Visualize both the spatial and non-spatial dimensions of a cluster of strong loadings. 
 
         Parameters
         ----------
         lv_idx : int
-            Index of latent variable pair for which clusters should be plotted.
-        cluster_idx : indexer, optional
-            Index of cluster(s) to display. The default is ``None``, which displays all clusters whose size exceeds ``min_size``
-        min_size : TYPE, optional
-            Minimum size of clusters to display. The default is ``10``. Ignored if ``cluster_idx`` is specified.
+            Index of latent variable pair of the cluster to be plotted.
+        cluster_idx : int
+            Index of cluster to display.
         size_measure : str, optional
             Specifies the size measure to use when comparing cluster sizes to ``min_size``. See :meth:`get_cluster_sizes`. The default is ``'pct-strong'``. Ignored if ``cluster_idx`` is specified.
         highlight : str, optional
@@ -835,8 +831,6 @@ class PLSC():
             - ``'auto'`` (default): Makes a sensible choice given the datatype provided.
             - ``'butterfly'``: Creates a butterfly plot (coloured line plot per channel)
             - ``''
-        separate_figures : bool, optional
-            Specifies whether each cluster should be displayed in a separate figure. The default is ``'auto'``, which displays clusters in separate figures if there are more than 4.
 
         Returns
         -------
@@ -844,45 +838,22 @@ class PLSC():
         """
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         # Default to manually specified cluster_idx
-        if cluster_idx is None:
-            # Plot all clusters above the min size
-            cluster_sizes = self.get_cluster_sizes(lv_idx=lv_idx,
-                                                   size_measure=size_measure)
-            cluster_idx = np.where(cluster_sizes >= min_size)[0]
-        # Fallback to checking cluster sizes
-        try:
-            len(cluster_idx)
-        except:
-            # Presumably an integer
-            cluster_idx = [cluster_idx]
-        if len(cluster_idx) == 0:
-            raise ValueError('No clusters meet or exceed the minimum cluster size')
-        if separate_figures == 'auto':
-            separate_figures = len(cluster_idx) > 4
-        if not separate_figures:
-            f, ax = plt.subplots(nrows=len(cluster_idx),
-                                 layout='constrained',
-                                 squeeze=False) # Make subscriptable for later on
-        for ax_i, clust_i in enumerate(cluster_idx):
-            if separate_figures:
-                f, curr_ax = plt.subplots(layout='constrained')
-            else:
-                curr_ax = ax[ax_i, 0]
-            # Subdivide into left and right axis
-            sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
-            curr_ax.remove()
-            # Left axis: visualize non-spatial dimension(s)
-            ax_left = f.add_subplot(sub_gs[0])
-            self.plot_cluster_nonspatial(lv_idx=lv_idx,
-                                         cluster_idx=clust_i,
-                                         plot_type=plot_type,
-                                         highlight=highlight,
-                                         ax=ax_left)
-            ax_right = f.add_subplot(sub_gs[1])
-            self.plot_cluster_spatial(lv_idx=lv_idx,
-                                      cluster_idx=clust_i,
-                                      highlight=highlight,
-                                      ax=ax_right)
+        f, curr_ax = plt.subplots(layout='constrained')
+        # Subdivide into left and right axis
+        sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
+        curr_ax.remove()
+        # Left axis: visualize non-spatial dimension(s)
+        ax_left = f.add_subplot(sub_gs[0])
+        self.plot_cluster_nonspatial(lv_idx=lv_idx,
+                                     cluster_idx=cluster_idx,
+                                     plot_type=plot_type,
+                                     highlight=highlight,
+                                     ax=ax_left)
+        ax_right = f.add_subplot(sub_gs[1])
+        self.plot_cluster_spatial(lv_idx=lv_idx,
+                                  cluster_idx=cluster_idx,
+                                  highlight=highlight,
+                                  ax=ax_right)
 
 class MCPLSC(PLSC):
     """
@@ -977,7 +948,7 @@ class Template():
     """
     Template containing channels, times, frequencies, etc. associated with the data. This is used 
     """
-    def __init__(self, source, src=None):
+    def __init__(self, source):
         # Keep the useful info without the data
         if isinstance(source, list):
             source = source[0]
@@ -985,10 +956,9 @@ class Template():
         self.datatype = utils.infer_datatype(source)
         # Determine sensors space vs source space
         if self.datatype in ['epo', 'spec', 'tfr']:
-            space = 'sensor'
+            self.space = 'sensor'
         elif self.datatype in ['surf-stc', 'vol-stc']:
-            space = 'source'
-        self.space = space
+            self.space = 'source'
         # Get shape of data, ignoring epochs dimension
         if self.datatype in ['surf-stc', 'vol-stc']:
             data = source.data
@@ -1011,12 +981,10 @@ class Template():
         if self.space == 'sensor':
             self.info = source.info
         elif self.space == 'source':
-            self.src = src
+            self.vertices = source.vertices
         for attr in ['times', 'freqs', 'subject']:
             if attr in dir(source):
                 setattr(self, attr, getattr(source, attr))
-        if self.datatype == 'vol-stc':
-            self.vertices = source.vertices[0]
     def set_src(self, src, t1):
         # TODO: validate
         self.src = src

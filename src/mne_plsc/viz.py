@@ -284,7 +284,9 @@ def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
     if template.space == 'sensor':
         ydata = ydata = np.arange(template.info['nchan'])
     elif template.space == 'source':
-        ydata = np.arange(len(template.vertices))
+        n_vert = sum([len(v) for v in template.vertices])
+        ydata = np.arange(n_vert)
+        
     im = ax.pcolormesh(xdata,
                        ydata,
                        data, # Potentially masked array
@@ -450,7 +452,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
         # Create volume
         stc = mne.VolSourceEstimate(
             data=spatial_data,
-            vertices=[template.vertices],
+            vertices=template.vertices,
             tmin=0.0,
             tstep=1,
             subject=template.subject
