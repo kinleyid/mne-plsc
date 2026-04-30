@@ -195,6 +195,7 @@ def get_cluster_extent(mask):
     true_indices = np.argwhere(mask)
     mins = true_indices.min(axis=0)
     maxs = true_indices.max(axis=0)
-    slices = tuple(slice(lo, hi + 1) for lo, hi in zip(mins, maxs))
+    lims = list(zip(mins, maxs))
+    slices = tuple(slice(lo, hi + 1) for lo, hi in lims)
     in_extent[slices] = True
-    return in_extent
+    return in_extent, lims
