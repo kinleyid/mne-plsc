@@ -4,6 +4,7 @@ import mne
 import pyplsc
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib import gridspec
 from mne.stats.cluster_level import _find_clusters
 
 from . import utils, viz
@@ -109,8 +110,8 @@ def fit_mc(data,
         MCPLSC object fit to the data.
     """
     
-    datamat = utils.get_datamat(data)
     template = Template(data)
+    datamat = utils.get_datamat(data, datatype=template.datatype)
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state)
@@ -323,6 +324,8 @@ class PLSC():
                              return_boot_stat_dist=return_boot_stat_dist,
                              n_jobs=n_jobs,
                              print_prog=print_prog)
+    def add_src(self, src, t1):
+        self.template.set_src(src, t1)
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         """
         Add adjacency matrix for clustering.
@@ -339,29 +342,39 @@ class PLSC():
         None.
             None. Adds an ``adjacency`` attribute to :attr:`template` which indicates which channels, times, and frequencies (as applicable) are adjacent for clustering.
         """
-        if all_channels_adjacent == 'auto':
-            if self.template.datatype == 'epo':
-                all_channels_adjacent = True
-                print('Defaulting to all channels adjacent for ERP/ERF analysis')
+        if self.template.space == 'sensor':
+            if all_channels_adjacent == 'auto':
+                if self.template.datatype == 'epo':
+                    all_channels_adjacent = True
+                    print('Defaulting to all channels adjacent for ERP/ERF analysis')
+                else:
+                    all_channels_adjacent = False
+            if all_channels_adjacent:
+                ch_adj = np.ones((self.template.info['nchan'],)*2)
             else:
-                all_channels_adjacent = False
-        if all_channels_adjacent:
-            ch_adj = np.ones((self.template.info['nchan'],)*2)
-        else:
-            if montage_name is None:
-                ch_adj, _ = mne.channels.find_ch_adjacency(self.template.info, 'eeg') # TODO: other options than eeg
-            else:
-                ch_adj, _ = mne.channels.read_ch_adjacency(montage_name)
-        dim_adjs = (ch_adj,) + self.template.shape[1:]
+                if montage_name is None:
+                    ch_types = set(self.template.info.get_channel_types())
+                    if len(ch_types) > 1:
+                        raise ValueError('Multiple channel types present in data: %s. Adjacency could not be computed' % ch_types)
+                    ch_type = ch_types.pop() # One-element set
+                    ch_adj, _ = mne.channels.find_ch_adjacency(self.template.info, ch_type)
+                else:
+                    ch_adj, _ = mne.channels.read_ch_adjacency(montage_name)
+            spatial_adj = ch_adj
+        elif self.template.space == 'source':
+            if self.template.src is None:
+                raise ValueError('Source space must be specified to compute spatial adjacency. See add_src()')
+            spatial_adj = mne.spatial_src_adjacency(self.template.src)
+        dim_adjs = (spatial_adj,) + self.template.shape[1:]
         self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
-    def cluster(self, which='saliences', threshold=None, signed='auto'):
+    def cluster(self, which='auto', threshold=None, signed='auto'):
         """
         Identify clusters of adjacent saliences above some threshold.
 
         Parameters
         ----------
         which : str, optional
-            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be used for clustering. The default is `'saliences'`.
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be used for clustering. The default is ``'auto'``, which uses z-scores if they are available and otherwise falls back to raw saliences.
         threshold : float | callable, optional
             Saliences must be above this threshold to be part of a cluster. The default is ``None``, which uses the mean salience if ``which='saliences'`` and a value of 2 if ``which='z-scores'``.
         signed : bool, optional
@@ -372,9 +385,17 @@ class PLSC():
         None
             None. Adds the attribute :attr:`clusters`.
         """
-        _check_str_arg('which', which, ('saliences', 'z-scores'))
+        _check_str_arg('which', which, ('auto', 'saliences', 'z-scores'))
         if 'adjacency' not in dir(self.template):
             raise ValueError('Adjacency must be added with .add_adjacency() before clustering can be done')
+        # Auto-determine data to cluster
+        if which == 'auto':
+            if self.model._boot_done:
+                which = 'z-scores'
+            else:
+                which = 'saliences'
+            print('Clustering %s' % which)
+        # Validate data to cluster
         if which == 'z-scores':
             if not self.model._boot_done:
                 raise ValueError('Bootstrap resampling must be done to use z scores for clustering.')
@@ -387,6 +408,7 @@ class PLSC():
             if threshold is None:
                 # Average salience
                 threshold = np.mean
+        # Compute abs---ends up being used even for signed clustering
         absdata = np.abs(data)
         if callable(threshold):
             threshold = np.apply_along_axis(func1d=threshold,
@@ -399,8 +421,8 @@ class PLSC():
             threshold = [threshold]*self.model.n_sv_
         
         if signed == 'auto':
-            if self.template.datatype == 'epo':
-                print('Defaulting to unsigned clustering for ERP/ERF analysis')
+            if self.template.datatype in ['epo', 'surf-stc', 'vol-stc']:
+                print('Defaulting to unsigned clustering')
                 signed = False
             else:
                 signed = True
@@ -408,7 +430,7 @@ class PLSC():
             data = absdata
         
         clusters = []
-        for lv_idx in range(data.shape[1]):
+        for lv_idx in range(self.model.rank_):
             # TODO: make an option for separate negative + positive clusters
             # Separate clustering for positive and negative
             print('Computing clusters for lv_idx %s...' % lv_idx)
@@ -440,6 +462,41 @@ class PLSC():
             })
         self.clusters = clusters
         self._clustering_done = True
+    def get_cluster_data(self, lv_idx, cluster_idx):
+        """
+        Get data and mask for a given cluster.
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair.
+        cluster_idx : int
+            Index of cluster.
+
+        Returns
+        -------
+        data : numpy.ndarray
+            Data used for clustering.
+        cluster : dict
+            Dict containing linear index of mask, Boolean mask of the same shape as ``data``, and cluster peak coordinates
+        info : dict
+            Information about the cluster.
+        """
+        lv_clusters = self.clusters[lv_idx]
+        info = lv_clusters['info']
+        # Get data used for clustering
+        if info['which'] == 'saliences':
+            data = self.model.data_sals_[:, lv_idx]
+        elif info['which'] == 'z-scores':
+            data = self.model.data_sals_z_[:, lv_idx]
+        data = data.reshape(self.template.shape)
+        # Create copy of cluster and add mask
+        cluster = lv_clusters['clusters'][cluster_idx].copy() # Note copy
+        # Go from linear indices to ndarray mask
+        mask = np.zeros(self.template.shape, dtype=np.bool)
+        mask.flat[cluster['idx']] = True
+        cluster['mask'] = mask
+        return data, cluster, info
     def get_cluster_sizes(self, lv_idx, size_measure='pct-strong'):
         """
         Get sizes of clusters.
@@ -570,12 +627,12 @@ class PLSC():
                        ('saliences', 'z-scores'))
         if which == 'z-scores':
             data = self.model.data_sals_z_[:, lv_idx]
-            ylabel = 'z score'
-            vlabel = 'Mean z score'
+            label = 'z score'
+            avg_label = 'Mean z score'
         elif which == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
-            ylabel = 'Salience'
-            vlabel = 'Mean salience'
+            label = 'Salience'
+            avg_label = 'Mean salience'
         data = data.reshape(self.template.shape)
         if self.template.datatype in ['epo', 'spec']:
             # Line plot with spatial colours
@@ -594,15 +651,22 @@ class PLSC():
                                  info=self.template.info,
                                  ax=ax,
                                  xlabel=xlabel,
-                                 ylabel=ylabel,
+                                 ylabel=label,
                                  ythresh=ythresh)
         elif self.template.datatype == 'tfr':
             # Show average
             tf_data = data.mean(axis=0)
             viz.tfr_image(template=self.template,
                           data=tf_data,
-                          vlabel=vlabel,
+                          vlabel=avg_label,
                           ax=ax)
+        elif self.template.datatype == 'vol-stc':
+            viz.space_raster(template=self.template,
+                             data=data,
+                             vlabel=label,
+                             ax=ax)
+        elif self.template.datatype == 'surf-stc':
+            raise NotImplementedError()
     def plot_lv(self, lv_idx, which='saliences'):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
@@ -657,7 +721,88 @@ class PLSC():
                                      logx=logx,
                                      ax=ax)
         return out
-    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', plot_type='auto', separate_figures='auto'):
+    def plot_cluster_nonspatial(self, lv_idx, cluster_idx, highlight='peak', plot_type='auto', ax=None):
+        """
+        SUMMARY.
+
+        Parameters
+        ----------
+        lv_idx : TYPE
+            DESCRIPTION.
+        cluster_idx : TYPE
+            DESCRIPTION.
+        annotate : str
+            What to annotate.
+        plot_type : TYPE, optional
+            DESCRIPTION. The default is 'auto'.
+        ax : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        None
+        """
+        if ax is None:
+            f, ax = plt.subplots()
+        if plot_type == 'auto':
+            if self.template.datatype in ['epo', 'spec']:
+                plot_type = 'butterfly'
+            elif self.template.datatype in ['tfr']:
+                plot_type = 'raster'
+            elif self.template.datatype in ['surf-stc', 'vol-stc']:
+                plot_type = 'distribution'
+        data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+        if plot_type == 'butterfly':
+            out = viz.plot_cluster_butterfly(data=data,
+                                             template=self.template,
+                                             cluster=cluster,
+                                             which=info['which'],
+                                             ythresh=info['threshold'],
+                                             highlight=highlight,
+                                             ax=ax)
+        elif plot_type == 'raster':
+            out = viz.plot_cluster_raster(data=data,
+                                         template=self.template,
+                                         cluster=cluster,
+                                         which=info['which'],
+                                         highlight=highlight,
+                                         ax=ax)
+        elif plot_type == 'distribution':
+            out = viz.plot_cluster_distribution(self.template,
+                                                cluster=cluster,
+                                                highlight=highlight,
+                                                ax=ax)
+        return out
+      
+    def plot_cluster_spatial(self, lv_idx, cluster_idx, highlight='peak', plot_type='auto', ax=None):
+        """
+        Plot cluster across spatial dimension of data (sensors or sources).
+
+        Parameters
+        ----------
+        lv_idx : int
+            Index of latent variable pair.
+        cluster_idx : int
+            Index of cluster.
+        ax : instance of Matplotlib Axes, optional
+            Axes to plot to. The default is ``None``, which generates a new figure.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+        """
+        
+        data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+        # TODO: set plot_type if auto
+        out = viz.plot_cluster_spatial(data=data,
+                                       template=self.template,
+                                       cluster=cluster,
+                                       cluster_info=info,
+                                       highlight=highlight,
+                                       ax=ax)
+        return out
+    def plot_clusters(self, lv_idx, cluster_idx=None, min_size=10, size_measure='pct-strong', highlight='peak', nonspatial_plot_type='auto', separate_figures='auto'):
         """
         Plot clusters of strong loadings. 
 
@@ -671,7 +816,9 @@ class PLSC():
             Minimum size of clusters to display. The default is ``10``. Ignored if ``cluster_idx`` is specified.
         size_measure : str, optional
             Specifies the size measure to use when comparing cluster sizes to ``min_size``. See :meth:`get_cluster_sizes`. The default is ``'pct-strong'``. Ignored if ``cluster_idx`` is specified.
-        non_chan_plot : TYPE, optional
+        highlight : str, optional
+            Must be one of ``'peak'`` or ``'extent'``. Default is ``'peak'``.
+        nonspatial_plot_type : TYPE, optional
             DESCRIPTION. The default is ``'masked-data'``.
         separate_figures : bool, optional
             Specifies whether each cluster should be displayed in a separate figure. The default is ``'auto'``, which displays clusters in separate figures if there are more than 4.
@@ -680,6 +827,7 @@ class PLSC():
         -------
         None
         """
+        _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         lv_clusters = self.clusters[lv_idx]
         if lv_clusters['info']['which'] == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
@@ -703,26 +851,28 @@ class PLSC():
             separate_figures = len(cluster_idx) > 4
         if not separate_figures:
             f, ax = plt.subplots(nrows=len(cluster_idx),
-                                 layout='constrained')
-            if len(cluster_idx) == 1:
-                ax = [ax] # Make subscriptable for later on
-        # Determine how to plot the non-channel margin
-        if plot_type == 'auto':
-            if self.template.datatype in ['epo', 'spec']:
-                plot_type = 'butterfly'
-            elif self.template.datatype == 'tfr':
-                plot_type = 'image'
+                                 layout='constrained',
+                                 squeeze=False) # Make subscriptable for later on
         for ax_i, clust_i in enumerate(cluster_idx):
             if separate_figures:
                 f, curr_ax = plt.subplots(layout='constrained')
             else:
-                curr_ax = ax[ax_i]
-            viz.plot_cluster(data=data,
-                             template=self.template,
-                             cluster=lv_clusters['clusters'][clust_i],
-                             cluster_info=lv_clusters['info'],
-                             plot_type=plot_type,
-                             ax=curr_ax)
+                curr_ax = ax[ax_i, 0]
+            # Subdivide into left and right axis
+            sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
+            curr_ax.remove()
+            # Left axis: visualize non-spatial dimension(s)
+            ax_left = f.add_subplot(sub_gs[0])
+            self.plot_cluster_nonspatial(lv_idx=lv_idx,
+                                         cluster_idx=clust_i,
+                                         plot_type=nonspatial_plot_type,
+                                         highlight=highlight,
+                                         ax=ax_left)
+            ax_right = f.add_subplot(sub_gs[1])
+            self.plot_cluster_spatial(lv_idx=lv_idx,
+                                      cluster_idx=clust_i,
+                                      highlight=highlight,
+                                      ax=ax_right)
 
 class MCPLSC(PLSC):
     """
@@ -761,7 +911,7 @@ class MCPLSC(PLSC):
                        ('chan', 'time', 'freq', 'time-freq'))
         if margin != 'chan':
             if margin == 'time':
-                allowed_datatypes = ('epo', 'tfr')
+                allowed_datatypes = ('epo', 'tfr', 'surf-stc', 'vol-stc')
             elif margin == 'freq':
                 allowed_datatypes = ('spec', 'tfr')
             elif margin == 'time-freq':
@@ -817,22 +967,47 @@ class Template():
     """
     Template containing channels, times, frequencies, etc. associated with the data. This is used 
     """
-    def __init__(self, source):
+    def __init__(self, source, src=None):
         # Keep the useful info without the data
         if isinstance(source, list):
             source = source[0]
+        # Infer datatype
         self.datatype = utils.infer_datatype(source)
-        if utils.is_epochs(source, datatype=self.datatype):
-            self.shape = source.get_data().shape[1:]
+        # Determine sensors space vs source space
+        if self.datatype in ['epo', 'spec', 'tfr']:
+            space = 'sensor'
+        elif self.datatype in ['surf-stc', 'vol-stc']:
+            space = 'source'
+        self.space = space
+        # Get shape of data, ignoring epochs dimension
+        if self.datatype in ['surf-stc', 'vol-stc']:
+            data = source.data
         else:
-            self.shape = source.get_data().shape
+            data = source.get_data()
+        if utils.is_epochs(source, datatype=self.datatype):
+            self.shape = data.shape[1:]
+        else:
+            self.shape = data.shape
         self.size = np.prod(self.shape)
+        # Get names of data dimensions
         dimnames = {
-            'epo': ('chan', 'time'),
-            'spec': ('chan', 'freq'),
-            'tfr': ('chan', 'freq', 'time')}
+            'epo':      ('chan', 'time'),
+            'spec':     ('chan', 'freq'),
+            'tfr':      ('chan', 'freq', 'time'),
+            'vol-stc':  ('vert', 'time'),
+            'surf-stc': ('vert', 'time')}
         self.dimnames = dimnames[self.datatype]
-        self.info = source.info
-        for attr in ['times', 'freqs']:
+        self.ndim = len(self.dimnames)
+        if self.space == 'sensor':
+            self.info = source.info
+        elif self.space == 'source':
+            self.src = src
+        for attr in ['times', 'freqs', 'subject']:
             if attr in dir(source):
                 setattr(self, attr, getattr(source, attr))
+        if self.datatype == 'vol-stc':
+            self.vertices = source.vertices[0]
+    def set_src(self, src, t1):
+        # TODO: validate
+        self.src = src
+        self.t1 = t1

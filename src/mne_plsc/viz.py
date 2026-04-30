@@ -7,6 +7,7 @@ from matplotlib import cm, colors
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mtick
 # import seaborn as sns
+from nilearn import image, plotting
 
 from mne.viz.evoked import _rgb, _plot_legend
 from mne.viz.utils import _plot_masked_image
@@ -38,8 +39,8 @@ def _subdivide_ax(ax, nrows=1, ncols=1, sharex=False, sharey=False):
     else:
         sharey = None
     axes = [f.add_subplot(gs[i],
-                                  sharex=ax0,
-                                  sharey=ax0)
+                          sharex=ax0,
+                          sharey=ax0)
             for i in range(1, nrows*ncols)]
     ax = np.stack([ax0] + axes)
     ax = ax.reshape((nrows, ncols))
@@ -263,6 +264,46 @@ def chan_image(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
         f.colorbar(im, ax=ax).set_label(vlabel)
     return f, ax
 
+def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
+    f, ax = _get_ax(ax)
+    if vlim is None:
+        vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
+    xdata = template.times
+    if template.space == 'sensor':
+        ydata = ydata = np.arange(template.info['nchan'])
+    elif template.space == 'source':
+        ydata = np.arange(len(template.vertices))
+    im = ax.pcolormesh(xdata,
+                       ydata,
+                       data, # Potentially masked array
+                       cmap='RdBu_r',
+                       vmin=vlim[0],
+                       vmax=vlim[1])
+    if np.ma.is_masked(data):
+        # Draw contours
+        ax.contour(xdata,
+                   ydata,
+                   data.mask,
+                   levels=[0.5],
+                   corner_mask=False,
+                   antialiased=False,
+                   colors=['k'])
+    # Labels for y axis
+    if template.space == 'sensor':
+        ydata = ydata = np.arange(template.info['nchan'])
+    elif template.space == 'source':
+        ax.set_ylabel('Source index')
+    # Labels for x axis
+    nonspace_dim = template.dimnames[1]
+    if nonspace_dim == 'time':
+        ax.set_xlabel('Time (s)')
+    elif nonspace_dim == 'freq':
+        ax.set_xlabel('Frequency (Hz)')
+    # Colorbar
+    if cbar:
+        f.colorbar(im, ax=ax).set_label(vlabel)
+    return f, ax
+
 def get_spatial_colours(info):
     locs3d = np.array([ch['loc'][:3] for ch in info['chs']])
     x, y, z = locs3d.T
@@ -352,59 +393,70 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
         ax.set_xscale('log')
     return f, ax
 
-def plot_cluster(data, template, cluster, cluster_info, plot_type, ax=None):
+def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=None):
     f, ax = _get_ax(ax)
-    data = data.reshape(template.shape)
-    # Go from linear indices to ndarray mask
-    mask = np.zeros(template.shape, dtype=np.bool)
-    mask.flat[cluster['idx']] = True
-    # Divide into sub-axes
-    sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=ax.get_subplotspec())
-    ax.remove()
-    # Left panel: non-topo plot (i.e., non-channel margins)
-    ax_left = f.add_subplot(sub_gs[0])
-    if plot_type == 'butterfly':
-        plot_cluster_butterfly(data=data,
-                               template=template,
-                               mask=mask,
-                               which=cluster_info['which'],
-                               ythresh=cluster_info['threshold'],
-                               ax=ax_left)
-    elif plot_type == 'image':
-        plot_cluster_image(data=data,
-                           template=template,
-                           mask=mask,
-                           which=cluster_info['which'],
-                           ax=ax_left)
-    elif plot_type == 'density':
-        plot_cluster_distribution(template,
-                                  mask,
-                                  ax=ax_left)
-    # Right panel: topoplot
-    ax_right = f.add_subplot(sub_gs[1])
-    non_chan_axes = utils.get_non_margin_axes('chan', template.datatype)
-    ch_mask = mask.sum(axis=non_chan_axes) > 0
-    non_chan_mask = mask.sum(axis=0) > 0
-    topo_data = data[:, non_chan_mask].mean(axis=1) # 1 or non_chan_axes?
-    im, _ = mne.viz.plot_topomap(topo_data,
-                                 template.info,
-                                 axes=ax_right,
-                                 mask=ch_mask, show=False)
-    # Colorbar
+    # Get colorbar labels
     if cluster_info['which'] == 'saliences':
-        vlabel = 'Mean salience in cluster bounds'
+        which = 'salience'
     elif cluster_info['which'] == 'z-scores':
-        vlabel = 'Mean bootstrap ratio (z score) in cluster bounds'
-    cbar = ax_right.figure.colorbar(im, shrink=0.6)
-    cbar.ax.set_ylabel(vlabel)
-    return f, (ax_left, ax_right)
-
-def plot_cluster_butterfly(data, template, mask, which, ythresh, ax=None):
+        which = 'bootstrap ratio (z score)'
+    if highlight == 'peak':
+        vlabel = '%s at cluster peak' % which
+    elif highlight == 'extent':
+        vlabel = 'mean %s in cluster extent' % which
+    vlabel = vlabel.capitalize()
+    if template.space == 'sensor':
+        # Get channels in mask to highlight
+        ch_mask = cluster['mask'].sum(axis=-1) > 0
+        if highlight == 'extent':
+            # Get spatial data within cluster extent
+            extent = utils.get_cluster_extent(cluster['mask'])
+            topo_data = data[:, extent].mean(axis=-1)
+        elif highlight == 'peak':
+            # Get spatial data at non-spatial peak
+            peak_coords = cluster['peak'][1:] # skip spatial dimension
+            topo_data = data[:, peak_coords].mean(axis=-1)
+        im, _ = mne.viz.plot_topomap(topo_data,
+                                     template.info,
+                                     axes=ax,
+                                     mask=ch_mask, show=False)
+        # Colorbar
+        cbar = ax.figure.colorbar(im, shrink=0.6)
+        cbar.ax.set_ylabel(vlabel)
+    elif template.space == 'source':
+        plot_type = 'peak'
+        if plot_type == 'peak':
+            # Get nifti1 image
+            vert_peak, time_peak = peak
+            # Censor non-cluster points
+            masked = data.copy()
+            masked[~mask] = np.nan
+            stc = mne.VolSourceEstimate(
+                data=masked[:, time_peak],
+                vertices=[template.vertices],
+                tmin=0.0,
+                tstep=1,
+                subject=template.subject
+            )
+            vol = stc.as_volume(src=template.src)
+            # Remove time dimension
+            vol = image.index_img(vol, 0)
+            # Display image
+            plotting.plot_stat_map(vol,
+                                   bg_img=template.t1,
+                                   symmetric_cbar=True,
+                                   axes=ax)
+            # Label colorbar
+            cbar_ax = f.get_axes()[-1]
+            cbar_ax.set_ylabel(vlabel, color='white')
+            print(vlabel)
+    return f, ax
+    
+def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, ax=None):
     # Plot a cluster over non-channel margin(s)
     f, ax = _get_ax(ax)
-    # Censor out-of-cluster data
-    masked = data.copy()
-    masked[~mask] = np.nan
+    # Create masked data
+    masked = np.ma.masked_array(data=data, mask=~cluster['mask'])
     # x axis is time or freq
     if template.datatype == 'epo':
         xdata = template.times
@@ -419,36 +471,99 @@ def plot_cluster_butterfly(data, template, mask, which, ythresh, ax=None):
         ylabel = 'Salience'
     elif which == 'z-scores':
         ylabel = 'Bootstrap ratio (z score)'
+    # Add highlighting first
+    if highlight == 'extent':
+        plot_cluster_extent(xdata, cluster, ax)
     # Line plot with censor
-    channel_lineplot(xdata,
-                     masked,
-                     template.info,
-                     ythresh=ythresh,
-                     xlabel=xlabel,
-                     ylabel=ylabel,
-                     ax=ax)
-    # Draw bounding box
-    n_chan = mask.sum(axis=0)
-    start, end = get_1d_lims(n_chan > 0)
-    ax.axvline(xdata[start], c='k', ls=':')
-    ax.axvline(xdata[end], c='k', ls=':')
+    f, ax = channel_lineplot(xdata,
+                             masked,
+                             template.info,
+                             ythresh=ythresh,
+                             xlabel=xlabel,
+                             ylabel=ylabel,
+                             ax=ax)
+    # Add peak after
+    if highlight == 'peak':
+        peak_t = xdata[cluster['peak'][1]]
+        ax.axvline(peak_t, c='k', ls=':')
+        peak_y = masked[cluster['peak']]
+        ax.scatter(peak_t, peak_y,
+                   c='white', edgecolors='black',
+                   label='Cluster peak')
+    # Annotate highlighting
+    if highlight != 'none':
+        ax.legend()
     return f, ax
 
-def plot_cluster_image(data, template, mask, which, ax=None):
+def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     f, ax = _get_ax(ax)
-    if template.datatype in ['epo', 'spec']:
+    if template.ndim == 2: # 1 spatial, 1 non-spatial dimension
         # Determine how to label data
         if which == 'saliences':
             vlabel = 'Salience'
         elif which == 'z-scores':
             vlabel = 'Bootstrap ratio (z score)'
+        # Determine non-spatial dimension
+        nonspatial_dim = template.dimnames[1]
+        if nonspatial_dim == 'time':
+            xdata = template.times
+            xlabel = 'Time (s)'
+        elif nonspatial_dim == 'freq':
+            xdata = template.freqs
+            xlabel = 'Frequency (Hz)'
         # Mask
-        #chan_data = data.copy()
-        #chan_data[~mask] = 0
+        masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
+        # Show extent
+        if highlight == 'extent':
+            plot_cluster_extent(xdata, cluster, ax)
         # Plot
-        chan_data = np.ma.MaskedArray(data=data, mask=~mask)
-        chan_image(template=template, data=chan_data, vlabel=vlabel, ax=ax)
-    if template.datatype == 'tfr':
+        vlim = np.abs(data).max()
+        xdata = template.times
+        if template.space == 'sensor':
+            ydata = ydata = np.arange(template.info['nchan'])
+        elif template.space == 'source':
+            ydata = np.arange(len(template.vertices))
+        im = ax.pcolormesh(xdata,
+                           ydata,
+                           masked,
+                           cmap='RdBu_r',
+                           vmin=-vlim,
+                           vmax=vlim)
+        # Draw contours
+        ax.contour(xdata,
+                   ydata,
+                   cluster['mask'],
+                   levels=[0.5],
+                   corner_mask=False,
+                   antialiased=False,
+                   linewidths=0.25,
+                   colors=['k'])
+        # Plot peak
+        if highlight == 'peak':
+            peak_ch = cluster['peak'][0]
+            peak_t = xdata[cluster['peak'][1]]
+            ax.scatter(peak_t, peak_ch,
+                       c='white', edgecolors='black',
+                       label='Cluster peak')
+        # Annotate highlight
+        if highlight != 'none':
+            ax.legend()
+        # Labels for y axis
+        if template.space == 'sensor':
+            ydata = np.arange(template.info['nchan'])
+            ax.set(yticks=ydata)
+            ax.set(yticklabels=template.info['ch_names'])
+        elif template.space == 'source':
+            ax.set_ylabel('Source index')
+        # Labels for x axis
+        nonspace_dim = template.dimnames[1]
+        if nonspace_dim == 'time':
+            ax.set_xlabel('Time (s)')
+        elif nonspace_dim == 'freq':
+            ax.set_xlabel('Frequency (Hz)')
+        # Colorbar
+        f.colorbar(im, ax=ax).set_label(vlabel)
+    else: # 2 non-spatial dimensions (time and freq)
         # Compute average over data
         masked = np.ma.MaskedArray(data=data, mask=~mask)
         tfr_data = np.array(masked.mean(axis=0))
@@ -463,78 +578,44 @@ def plot_cluster_image(data, template, mask, which, ax=None):
                           ax=ax)
     return f, ax
 
-def plot_cluster_nontopo(data, template, mask, cluster_info, ylabel=None, ax=None):
-    # Plot a cluster over non-channel margin(s)
-    f, ax = _get_ax(ax)
-    # Censor out-of-cluster data
-    masked = data.copy()
-    masked[~mask] = np.nan
-    if template.datatype in ['epo', 'spec']:
-        # Line plot---x axis is time or freq
-        if template.datatype == 'epo':
-            x = template.times
-            xlabel = 'Time (s)'
-        elif template.datatype == 'spec':
-            x = template.freqs
-            xlabel = 'Frequency (Hz)'
-        # Line plot with censor
-        channel_lineplot(x,
-                         masked,
-                         template.info,
-                         ythresh=cluster_info['threshold'],
-                         xlabel=xlabel,
-                         ylabel=ylabel,
-                         ax=ax)
-        # Draw bounding box
-        n_chan = mask.sum(axis=0)
-        start, end = get_1d_lims(n_chan > 0)
-        ax.axvline(x[start], c='k', ls=':')
-        ax.axvline(x[end], c='k', ls=':')
-    elif template.datatype == 'tfr':
-        # TFR image, but masked
-        masked = np.ma.MaskedArray(data=data, mask=~mask)
-        tfr_data = np.array(masked.mean(axis=0))
-        if cluster_info['which'] == 'saliences':
-            vlabel = 'Mean salience'
-        elif cluster_info['which'] == 'z-scores':
-            vlabel = 'Mean bootstrap ratio (z score)'
-        f, ax = tfr_image(template, tfr_data, vlabel=vlabel, ax=ax)
-        
-    return f, ax
+def get_nonspatial_dim(template):
+    nonspatial_dim = template.dimnames[1]
+    if nonspatial_dim == 'time':
+        xdata = template.times
+        xlabel = 'Time (s)'
+    elif nonspatial_dim == 'freq':
+        xdata = template.freqs
+        xlabel = 'Frequency (Hz)'
+    return xdata, xlabel
 
-def get_1d_lims(bool_array):
-    diff = np.diff(bool_array.astype(int))
-    start = np.where(diff == 1)[0] + 1
-    end = np.where(diff == -1)[0]
-    if bool_array[0]:
-        start = np.r_[0, start]
-    if bool_array[-1]:
-        end = np.r_[end, len(bool_array) - 1]
-    return start, end
-
-def plot_cluster_distribution(template, mask, ax=None):
-    # Plot the distribution of the cluster over non-channel axes
+def plot_cluster_distribution(template, cluster, highlight, ax=None):
+    # Plot the distribution of the cluster over non-spatial axes
     f, ax = _get_ax(ax)
-    if template.datatype in ['epo', 'spec']:
-        # Line plot---x axis is time or freq
-        n_chan = mask.sum(axis=0)
-        if template.datatype == 'epo':
-            x = template.times
-            xlabel = 'Time (s)'
-        elif template.datatype == 'spec':
-            x = template.freqs
-            xlabel = 'Frequency (Hz)'
-        ax.plot(x, n_chan)
-        # Draw limits
-        start, end = get_1d_lims(n_chan > 0)
-        ax.plot(x[[start, start]], [0, template.info['nchan']], 'k:')
-        ax.plot(x[[end, end]], [0, template.info['nchan']], 'k:')
+    if len(template.dimnames) == 2:
+        n_in_clust = cluster['mask'].sum(0)
+        # Data and label for non-spatial dimension
+        xdata, xlabel = get_nonspatial_dim(template)
+        if highlight == 'extent':
+            plot_cluster_extent(xdata, cluster, ax)
+        # Plot distribution over non-spatial dimension
+        ax.plot(xdata, n_in_clust)
+        if highlight == 'peak':
+            peak_x = xdata[cluster['peak'][1]]
+            ax.axvline(peak_x, c='k', ls=':',
+                       label='Cluster peak')
+        # Labels
         ax.set_xlabel(xlabel)
-        ax.set_ylabel('Channels in cluster')
-        ax.set_ylim((0, len(template.info['chs'])))
+        spatial_dim = template.dimnames[0]
+        if spatial_dim == 'vert':
+            ylabel = 'N. vertices in cluster'
+        else:
+            ylabel = 'N. channels in cluster'
+            ax.set_ylim((0, template.info['nchan']))
+        ax.set_ylabel(ylabel)
+        if highlight != 'none':
+            ax.legend()
     elif template.datatype == 'tfr':
-        # TODO: implement
-        pass
+        raise NotImplementedError()
     return f, ax
 
 def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=None):
@@ -629,6 +710,13 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                                  textcoords="offset points",
                                  fontsize=12, ha="left", va="center")
     return f, ax
+
+def plot_cluster_extent(xdata, cluster, ax):
+    in_extent = utils.get_cluster_extent(cluster['mask'])
+    ax.fill_between(xdata, 0, 1, where=in_extent,
+                    color='gray',
+                    transform=ax.get_xaxis_transform(),
+                    label='Cluster extent') # fill whole y axis
 
 def plot_clust_nchan_epochs(template, mask, axes):
     n_chan = mask.sum(axis=0)

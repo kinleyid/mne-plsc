@@ -74,7 +74,12 @@ def infer_datatype(data):
     if 'times' not in attrs:
         datatype = 'spec'
     else:
-        if 'freqs' in attrs:
+        if 'vertices' in attrs:
+            if 'as_volume' in attrs:
+                datatype = 'vol-stc'
+            else:
+                datatype = 'surf-stc'
+        elif 'freqs' in attrs:
             datatype = 'tfr'
         else:
             datatype = 'epo'
@@ -98,12 +103,15 @@ def is_epochs(data, datatype=None):
     out = '__len__' in dir(data) # Only epoch objects have a length
     return out
 
-def get_datamat(data):
+def get_datamat(data, datatype):
     # MNE object (or list thereof) to matrix
-    # TODO: validation
     if isinstance(data, list):
         # Each element is a different participant-wise average
-        datamat = np.stack([item.get_data().flatten() for item in data])
+        if datatype in ['suft-stc', 'vol-stc']:
+            get_data = lambda x: x.data
+        else:
+            get_data = lambda x: x.get_data()
+        datamat = np.stack([get_data(item).flatten() for item in data])
     else:
         # Single participant data
         datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
@@ -156,7 +164,9 @@ def get_grouping(between, within):
 def get_non_margin_axes(margin, datatype):
     mapping = {
         'time': {'epo': 0,
-                 'tfr': (0, 1)},
+                 'tfr': (0, 1),
+                 'surf-src': 0,
+                 'vol-stc': 0},
         'freq': {'spec': 0,
                  'tfr': (0, 2)},
         'chan': {'epo': 1,
@@ -166,3 +176,25 @@ def get_non_margin_axes(margin, datatype):
     }
     non_margin_axes = mapping[margin][datatype]
     return non_margin_axes
+
+def get_1d_lims(bool_array):
+    diff = np.diff(bool_array.astype(int))
+    start = np.where(diff == 1)[0] + 1
+    end = np.where(diff == -1)[0]
+    if bool_array[0]:
+        start = np.r_[0, start]
+    if bool_array[-1]:
+        end = np.r_[end, len(bool_array) - 1]
+    return start, end
+
+def get_cluster_extent(mask):
+    # Sum over spatial dimension
+    mask = mask.sum(axis=0) > 0
+    in_extent = np.zeros_like(mask)
+    # Build a slice for each axis from its min to max (inclusive)
+    true_indices = np.argwhere(mask)
+    mins = true_indices.min(axis=0)
+    maxs = true_indices.max(axis=0)
+    slices = tuple(slice(lo, hi + 1) for lo, hi in zip(mins, maxs))
+    in_extent[slices] = True
+    return in_extent
