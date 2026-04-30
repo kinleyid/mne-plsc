@@ -3,4 +3,5 @@ nbsphinx
 ipykernel
 pydata-sphinx-theme
 pyqt5
+ipywidgets
 darkdetect
