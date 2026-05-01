@@ -204,8 +204,8 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     # Ensure full x range is displayed
     ax.set_xlim((x[0], x[-1]))
     # Check for log scale (e.g. for frequency)
-    xscale = check_log_scale(x)
-    ax.set_xscale(xscale)
+    if check_log_scale(x):
+        ax.set_xscale('log')
     return f, ax
 
 def check_log_scale(data):

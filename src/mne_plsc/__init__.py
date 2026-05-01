@@ -1,8 +1,8 @@
 
 import mne
-# import pyls
 import pyplsc
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from mne.stats.cluster_level import _find_clusters
@@ -470,6 +470,7 @@ class PLSC():
         self.clusters = clusters
         self._clustering_done = True
     def get_cluster_data(self, lv_idx, cluster_idx):
+        # TODO: give this a more obscure name because it's obscure
         """
         Get data and mask for a given cluster.
 
@@ -549,6 +550,52 @@ class PLSC():
         elif size_measure == 'pct-total':
             sizes = 100*abs_sizes/self.template.size
         return sizes
+    def get_cluster_means(self, lv_idx=None, cluster_idx=None):
+        # TODO: option to get data at peak rather than mean within cluster
+        """
+        Compute average of data within cluster(s) and return as dataframe.
+
+        Parameters
+        ----------
+        lv_idx : TYPE, optional
+            DESCRIPTION. The default is None.
+        cluster_idx : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        None
+        """
+        
+        if lv_idx is None:
+            lv_idx = list(range(self.model.n_sv_))
+        else:
+            try:
+                len(lv_idx)
+            except:
+                lv_idx = [lv_idx]
+        dfs = []
+        for curr_lv_idx in lv_idx:
+            lv_clusters = self.clusters[curr_lv_idx]['clusters']
+            if cluster_idx is None:
+                cluster_idx = list(range(len(lv_clusters)))
+            else:
+                try:
+                    len(cluster_idx)
+                except:
+                    cluster_idx = [cluster_idx]
+            for curr_cluster_idx in cluster_idx:
+                # Set up sub-dataframe for this cluster
+                df = self.model.design_.copy()
+                df['lv_idx'] = curr_lv_idx
+                df['cluster_idx'] = curr_cluster_idx
+                curr_cluster = lv_clusters[curr_cluster_idx]
+                # Take average within cluster
+                cluster_means = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
+                df['cluster_mean'] = cluster_means
+                dfs.append(df)
+        return pd.concat(dfs)
+        
     def plot_scree(self, which='pct-variance', null_percentile=95, ax=None):
         """
         Generate a scree plot of singular values, possibly along with their null distributions.
@@ -706,10 +753,10 @@ class PLSC():
         """
         
         f, ax = plt.subplots(nrows=1, ncols=2,
-                             width_ratios=[2, 3],
+                             width_ratios=[3, 2],
                              layout='constrained')
-        self.plot_boot_stat(lv_idx, ax=ax[0])
-        self.plot_brain_sals(lv_idx, ax=ax[1], which=which)
+        self.plot_brain_sals(lv_idx, ax=ax[0], which=which)
+        self.plot_boot_stat(lv_idx, ax=ax[1])
         return f, ax
     def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, logx=False, ax=None):
         """
