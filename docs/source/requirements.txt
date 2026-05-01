@@ -6,4 +6,5 @@ pyqt5
 ipywidgets
 ipyevents
 pyvista
+pyvistaqt
 darkdetect
