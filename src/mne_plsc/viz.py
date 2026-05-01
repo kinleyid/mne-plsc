@@ -204,21 +204,18 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     # Ensure full x range is displayed
     ax.set_xlim((x[0], x[-1]))
     # Check for log scale (e.g. for frequency)
-    xscale = _check_log_scale(x)
+    xscale = check_log_scale(x)
     ax.set_xscale(xscale)
     return f, ax
 
-def _check_log_scale(data):
+def check_log_scale(data):
     # Determine if log-scale
     if any(data == 0):
-        scale = 'linear'
+        out = False
     else:
         ratios = data[1:] / data[:-1]
-        if np.allclose(ratios, ratios[0]):
-            scale = 'log'
-        else:
-            scale = 'linear'
-    return scale
+        out = np.allclose(ratios, ratios[0])
+    return out
 
 def tfr_image(template, data, cbar=True, vlabel=None, ax=None, vlim=None, ylabel='Frequency (Hz)', xlabel='Time (s)'):
     f, ax = _get_ax(ax)
@@ -248,6 +245,14 @@ def tfr_image(template, data, cbar=True, vlabel=None, ax=None, vlim=None, ylabel
     if cbar:
         f.colorbar(im, ax=ax).set_label(vlabel)
     return f, ax
+
+def add_freq_landmarks(axis):
+    freq_landmarks = np.array([1, 4, 8, 13, 20, 30, 40, 80])
+    lims = axis.get_view_interval()
+    in_range = (freq_landmarks > lims[0]) & (freq_landmarks < lims[1])
+    freq_landmarks = freq_landmarks[in_range]
+    axis.set_ticks(freq_landmarks)
+    axis.set_ticklabels([str(flm) for flm in freq_landmarks])
 
 def chan_image(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
     f, ax = _get_ax(ax)
@@ -325,6 +330,8 @@ def plot_labeled_raster(template, data, xdim, ydim, vlabel=None, vlim=None, ax=N
         ax.set_ylabel(ylabel)
     if vlabel is not None:
         f.colorbar(im, ax=ax).set_label(vlabel)
+    if ydim == 'freq' and ax.get_yscale() == 'log':
+        add_freq_landmarks(ax.yaxis)
     return f, ax
    
 def plot_raster(template, xdata, ydata, data, vlim=None, ax=None):
@@ -338,10 +345,10 @@ def plot_raster(template, xdata, ydata, data, vlim=None, ax=None):
                        vmin=vlim[0],
                        vmax=vlim[1])
     # Check for log axis scales
-    xscale = _check_log_scale(xdata)
-    ax.set_xscale(xscale)
-    yscale = _check_log_scale(ydata)
-    ax.set_yscale(yscale)
+    if check_log_scale(xdata):
+        ax.set_xscale('log')
+    if check_log_scale(ydata):
+        ax.set_yscale('log')
     return im
 
 def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
@@ -605,7 +612,6 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
         vlabel = data_desc.capitalize()
     # Get data for raster plot
     xdata, ydata = get_raster_axis_data(template, xdim, ydim)
-    xlabel, ylabel = get_raster_labels(xdim, ydim)
     # Highlight extent behind cluster
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax, ydata)
@@ -615,6 +621,10 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
                      ydata=ydata,
                      data=masked,
                      ax=ax)
+    # Labels
+    xlabel, ylabel = get_raster_labels(xdim, ydim)
+    if ydim == 'freq' and check_log_scale(ydata):
+        add_freq_landmarks(ax.yaxis) # for max future-proofing could also check for x
     # Add colour bar
     f.colorbar(im, ax=ax).set_label(vlabel)
     """
@@ -712,18 +722,22 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
             ax.set_ylabel('Brain score')
             ax.set_xlabel(xlabel)
             # Check for log x scale
-            xscale = _check_log_scale(x)
-            ax.set_xscale(xscale)
+            if check_log_scale(x):
+                ax.set_xscale('log')
+                if margin == 'freq':
+                    add_freq_landmarks(ax.xaxis)
     elif margin in ['chan', 'time-freq']:
         vlim = np.abs(np.stack(df['scores'])).max()
         # Set up axes---separate axis per condition
         if grouping == 'both':
             f, ax = plt.subplots(nrows=df['between'].nunique(),
                                  ncols=df['within'].nunique(),
-                                 sharex=True, sharey=True)
+                                 sharex=True, sharey=True,
+                                 squeeze=False)
         else:
             f, ax = plt.subplots(ncols=df[grouping].nunique(),
-                                 sharex=True, sharey=True)
+                                 sharex=True, sharey=True,
+                                 squeeze=False)
         # Plots
         for idx, row in df.iterrows():
             curr_ax = ax.flat[idx]
@@ -748,8 +762,8 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                                                     xdim='time',
                                                     ydim='freq')
                 plot_raster(template=template,
-                            xdata=xdata,
-                            ydata=ydata,
+                            xdata=template.times,
+                            ydata=template.freqs,
                             data=scores[idx],
                             vlim=(-vlim, vlim),
                             ax=curr_ax)
@@ -763,14 +777,15 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
         if margin == 'time-freq':
             f.supxlabel('Time (s)')
             f.supylabel('Frequency (Hz)')
+            if check_log_scale(template.freqs):
+                for curr_ax in ax[:, 0]:
+                    add_freq_landmarks(curr_ax.yaxis)
         # Label columns
         if grouping == 'both':
-            top_axes = ax[0]
             row_labels = df['within'].cat.categories
         else:
-            top_axes = ax
             row_labels = df[grouping].cat.categories
-        for curr_ax, label in zip(top_axes, row_labels):
+        for curr_ax, label in zip(ax[0, :], row_labels):
             curr_ax.set_title(label)
         if grouping == 'both':
             # Label rows
