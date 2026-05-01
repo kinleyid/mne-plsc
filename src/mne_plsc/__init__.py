@@ -88,7 +88,7 @@ def fit_mc(data,
     Parameters
     ----------
     data : MNE object or iterable of MNE objects
-        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition.
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition. For source-space analysis, data will always be a list of source time courses.
     design : ``pd.DataFrame``, optional
         Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
     between : iterable | ``str``, optional
@@ -922,7 +922,6 @@ class MCPLSC(PLSC):
         - ``'between'``
         - ``'within'``
         - ``'both'``
-        - ``'neither'``
     """
     def get_marginal_brain_scores(self, lv_idx, margin, average=True):
         """
@@ -950,8 +949,12 @@ class MCPLSC(PLSC):
         -------
         list of numpy.ndarray
             Marginal brain scores per condition.
-        """
         
+        Examples
+        --------
+        >>> scores = mod.get_marginal_brain_scores(lv_idx=0, margin='time') # Temporal brain scores
+        >>> scores = mod.get_marginal_brain_scores(lv_idx=0, margin='freq') # Spectral brain scores
+        """
         _check_str_arg('margin', margin,
                        ('chan', 'time', 'freq', 'time-freq'))
         if margin != 'chan':
@@ -995,8 +998,12 @@ class MCPLSC(PLSC):
         -------
         f, ax
             Figure and axes containing plot.
-        """
         
+        Examples
+        --------
+        >>> mod.plot_marginal_brain_scores(lv_idx=0, margin='time')
+        >>> mod.plot_marginal_brain_scores(lv_idx=0, margin='freq')
+        """
         scores = self.get_marginal_brain_scores(lv_idx=lv_idx,
                                                 margin=margin,
                                                 average=True)
