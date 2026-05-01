@@ -871,15 +871,26 @@ class PLSC():
         if self.template.datatype == 'surf-stc':
             # Interactive surface plot
             # Determine whether cluster peak is in left or right hemisphere
-            peak_vert, _ = self.clusters[lv_idx]['clusters'][cluster_idx]['peak']
+            lv_clusters = self.clusters[lv_idx]
+            cluster = lv_clusters['clusters'][cluster_idx]
+            peak_vert, _ = cluster['peak']
             if peak_vert < self.template.vertices[0].size:
                 hemi = 'lh'
             else:
                 hemi = 'rh'
-            # Generate interactive plot
+            # Convert to STC object for plotting
             stc = self.cluster_to_stc(lv_idx, cluster_idx)
+            # Set colour limits
+            cmax = stc.data[*cluster['peak']]
+            cmin = lv_clusters['info']['threshold']
+            cmid = cmin
+            clim = (cmin, cmid, cmax)
+            # Generate interactive plot
             out = stc.plot(subjects_dir=self.template.subjects_dir,
-                           hemi=hemi)
+                           hemi=hemi,
+                           time_viewer=False,
+                           clim={'kind': 'value',
+                                 'pos_lims': clim})
         else:
             data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
             out = viz.plot_cluster_spatial(data=data,

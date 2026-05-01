@@ -485,6 +485,7 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
     return f, ax
 
 def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backend=None, ax=None):
+    set_trace()
     f, ax = _get_ax(ax)
     # Get colorbar labels
     if cluster_info['which'] == 'saliences':
@@ -521,17 +522,6 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
         cbar.ax.set_ylabel(vlabel)
-    elif template.datatype == 'surf-stc':
-        spatial_data = spatial_data.reshape((-1, 1))
-        spatial_data[~spatial_mask] = np.nan
-        stc = mne.SourceEstimate(data=spatial_data,
-                                 vertices=template.vertices,
-                                 tmin=0, tstep=1,
-                                 subject=template.subject) # TODO: does this make sense in general?
-        print('backend=matplotlib')
-        stc.plot(subjects_dir='C:/Users/isaac/mne_data/MNE-sample-data/subjects',
-                 time_viewer=False,
-                 backend='matplotlib')
     elif template.datatype == 'vol-stc':
         spatial_data = spatial_data.reshape((-1, 1))
         spatial_data[~spatial_mask] = 0
