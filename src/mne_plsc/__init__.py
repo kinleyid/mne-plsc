@@ -180,63 +180,6 @@ class PLSC():
         self._clustering_done = False
         self.null_dist = None #: ``numpy.ndarray``: Array contain null distribution of singular values. Set by :meth:`permute`.
         self.clusters = None #: ``list``: A list of clusters per latent variable pair.
-    '''
-    def get_labels(self, per='lv', zipped=True):
-        if self.grouping_ == 'both':
-            if per == 'lv':
-                between = self.cond_labels_['between'].repeat(len(self.cond_labels_['within']))
-                within = self.cond_labels_['within'].to_list()*len(self.cond_labels_['between'])
-            elif per == 'obs':
-                between_idx, within_idx, _ = self.pls.design_.T
-                between = self.cond_labels_['between'][between_idx]
-                within = self.cond_labels_['within'][within_idx]
-            if zipped:
-                labels = zip(between, within)
-            else:
-                labels = (between, within)
-        elif self.grouping_ == 'neither':
-            labels = None
-        else:
-            lv_labels = self.cond_labels_[self.grouping_]
-            if per == 'lv':
-                labels = lv_labels
-            elif per == 'obs':
-                level_idx = compute._get_stratifier(self.pls.design_)
-                labels = lv_labels[level_idx]
-                
-        return labels
-    '''
-    '''
-    def summary(self):
-        n_lv = len(self.pls.singular_vals_)
-        # Format for printing p values
-        if self.perm_done:
-            n_digs = np.ceil(np.log10(self.pls_results.inputs.n_perm)) + 2
-            pval_fmt = '%%.%df' % n_digs
-        print('lv_idx   var.exp.   pval')
-        for lv_idx in range(n_lv):
-            print("{:<9}".format(lv_idx), end='')
-            # print('lv_idx %s:' % lv_idx)
-            # print('%s')
-            var_exp = '%s%%' % round(100*self.pls.variance_explained_[lv_idx], 2)
-            print("{:<11}".format(var_exp), end='')
-            # print('  %s%% var. exp.' % round(100*self.pls_results.varexp[lv_idx], 2))
-            if 'pvals' in dir(self.pls):
-                pval = self.pls_results.permres.pvals[lv_idx]
-                print(pval_fmt % pval, end='')
-                if pval < 0.001:
-                    print('***')
-                elif pval < 0.01:
-                    print('**')
-                elif pval < 0.05:
-                    print('*')
-                elif pval < 0.1:
-                    print('.')
-                else:
-                    print('')
-            else:
-                print('(none)')
-    '''
     def summary(self):
         """
         Summarize the model.
@@ -248,7 +191,7 @@ class PLSC():
         
         Examples
         --------
-        res.summary()
+        >>> res.summary()
         """
         return self.model.summary()
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
@@ -456,59 +399,42 @@ class PLSC():
             peaks = []
             for clust_idx in idxs:
                 # Get linear index of max
-                peak_idx = clust_idx[absdata[clust_idx, lv_idx].argmax()]
+                peak_flat = clust_idx[absdata[clust_idx, lv_idx].argmax()]
                 # Get coords of max
-                peak_coords = np.unravel_index(peak_idx, self.template.shape)
-                peaks.append(peak_coords)
+                peak_coords = np.unravel_index(peak_flat, self.template.shape)
+                peaks.append((peak_coords, peak_flat))
             clusters.append({
                 'info': {
                     'which': which,
                     'threshold': curr_thresh,
                     'n_above_thresh': n_above_thresh
                 },
-                'clusters': [{'idx': idx, 'peak': peak} for idx, peak in zip(idxs, peaks)]
+                'clusters': [{'idx': idx, 'peak_coords': peak_coords, 'peak_flat': peak_flat} for idx, (peak_coords, peak_flat) in zip(idxs, peaks)]
             })
         self.clusters = clusters
         self._clustering_done = True
-    def get_cluster_data(self, lv_idx, cluster_idx):
+    def _get_cluster(self, lv_idx, cluster_idx, return_data=True):
         # TODO: give this a more obscure name because it's obscure
-        """
-        Get data and mask for a given cluster.
-
-        Parameters
-        ----------
-        lv_idx : int
-            Index of latent variable pair.
-        cluster_idx : int
-            Index of cluster.
-
-        Returns
-        -------
-        data : numpy.ndarray
-            Data used for clustering.
-        cluster : dict
-            Dict containing linear index of mask, Boolean mask of the same shape as ``data``, and cluster peak coordinates
-        info : dict
-            Information about the cluster.
-        """
         lv_clusters = self.clusters[lv_idx]
         info = lv_clusters['info']
-        # Get data used for clustering, reshaped
-        if info['which'] == 'saliences':
-            data = self.model.data_sals_[:, lv_idx]
-        elif info['which'] == 'z-scores':
-            data = self.model.data_sals_z_[:, lv_idx]
-        data = data.reshape(self.template.shape)
         # Create copy of cluster and add mask
-        cluster = lv_clusters['clusters'][cluster_idx].copy() # Note copy
+        cluster = lv_clusters['clusters'][cluster_idx].copy()
         # Go from linear indices to ndarray mask
         mask = np.zeros(self.template.shape, dtype=np.bool)
         mask.flat[cluster['idx']] = True
         cluster['mask'] = mask
-        return data, cluster, info
+        out = cluster, info
+        if return_data:
+            # Get data used for clustering, reshaped
+            if info['which'] == 'saliences':
+                data = self.model.data_sals_[:, lv_idx]
+            elif info['which'] == 'z-scores':
+                data = self.model.data_sals_z_[:, lv_idx]
+            reshaped = data.copy().reshape(self.template.shape)
+            out += (reshaped,)
+        return out
     def cluster_to_stc(self, lv_idx, cluster_idx):
-        data, cluster, _ = self.get_cluster_data(lv_idx, cluster_idx)
-        data = data.copy()
+        cluster, _, data = self._get_cluster(lv_idx, cluster_idx)
         data[~cluster['mask']] = 0
         times = self.template.times * 1000 # s to ms
         tstep = np.diff(times)[0]
@@ -551,10 +477,9 @@ class PLSC():
         elif size_measure == 'pct-total':
             sizes = 100*abs_sizes/self.template.size
         return sizes
-    def get_cluster_means(self, lv_idx=None, cluster_idx=None):
-        # TODO: option to get data at peak rather than mean within cluster
+    def get_cluster_data(self, lv_idx=None, cluster_idx=None, val='mean'):
         """
-        Compute average of data within cluster(s) and return as dataframe.
+        SUMMARY.
 
         Parameters
         ----------
@@ -562,13 +487,19 @@ class PLSC():
             DESCRIPTION. The default is None.
         cluster_idx : TYPE, optional
             DESCRIPTION. The default is None.
+        val : TYPE, optional
+            DESCRIPTION. The default is 'mean'.
 
         Returns
         -------
-        None
+        TYPE
+            DESCRIPTION.
         """
+        
         if not self._clustering_done:
             raise ValueError('Clustering needs to be done first via the cluster() method.')
+        _check_str_arg('val', val,
+                       ('mean', 'peak'))
         if lv_idx is None:
             lv_idx = list(range(self.model.n_sv_))
         else:
@@ -588,15 +519,17 @@ class PLSC():
                     cluster_idx = [cluster_idx]
             for curr_cluster_idx in cluster_idx:
                 # Set up sub-dataframe for this cluster
-                df = self.model.design_.copy()
-                for i, cov in enumerate(self.model.covariate_names_):
-                    df[cov] = self.model.covariates_[:, i]
+                df = self.model.get_design_matrix()
                 df['lv_idx'] = curr_lv_idx
                 df['cluster_idx'] = curr_cluster_idx
                 curr_cluster = lv_clusters[curr_cluster_idx]
-                # Take average within cluster
-                cluster_means = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
-                df['cluster_mean'] = cluster_means
+                if val == 'mean':
+                    # Take average within cluster
+                    vals = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
+                elif val == 'peak':
+                    # Get data at cluster peak
+                    vals = self.model.data_[:, curr_cluster['peak_flat']]
+                df['cluster_%s' % val] = vals
                 dfs.append(df)
         return pd.concat(dfs)
         
@@ -823,7 +756,7 @@ class PLSC():
                 plot_type = 'raster'
             elif self.template.datatype in ['surf-stc', 'vol-stc']:
                 plot_type = 'distribution'
-        data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+        cluster, info, data = self._get_cluster(lv_idx, cluster_idx)
         # TODO: fail gracefully in case of mismatch between datatype and plot_type
         if plot_type == 'butterfly':
             out = viz.plot_cluster_butterfly(data=data,
@@ -871,9 +804,8 @@ class PLSC():
         if self.template.datatype == 'surf-stc':
             # Interactive surface plot
             # Determine whether cluster peak is in left or right hemisphere
-            lv_clusters = self.clusters[lv_idx]
-            cluster = lv_clusters['clusters'][cluster_idx]
-            vert_peak, time_peak = cluster['peak']
+            cluster, cluster_info = self._get_cluster(lv_idx, cluster_idx, return_data=False)
+            vert_peak, time_peak = cluster['peak_coords']
             if vert_peak < self.template.vertices[0].size:
                 hemi = 'lh'
             else:
@@ -881,8 +813,8 @@ class PLSC():
             # Convert to STC object for plotting
             stc = self.cluster_to_stc(lv_idx, cluster_idx)
             # Set colour limits
-            cmax = np.abs(stc.data[*cluster['peak']])
-            cmin = lv_clusters['info']['threshold']
+            cmax = np.abs(stc.data.flat[cluster['peak_flat']])
+            cmin = cluster_info['threshold']
             cmid = cmin
             clim = (cmin, cmid, cmax)
             # Generate interactive plot
@@ -893,7 +825,7 @@ class PLSC():
                            clim={'kind': 'value',
                                  'pos_lims': clim})
         else:
-            data, cluster, info = self.get_cluster_data(lv_idx, cluster_idx)
+            cluster, info, data = self._get_cluster(lv_idx, cluster_idx)
             out = viz.plot_cluster_spatial(data=data,
                                            template=self.template,
                                            cluster=cluster,

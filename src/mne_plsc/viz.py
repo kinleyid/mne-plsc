@@ -485,7 +485,6 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
     return f, ax
 
 def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backend=None, ax=None):
-    set_trace()
     f, ax = _get_ax(ax)
     # Get colorbar labels
     if cluster_info['which'] == 'saliences':
@@ -509,7 +508,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         spatial_mask = cluster['mask'].sum(axis=-1) > 0
     elif highlight == 'peak':
         # Get spatial data at non-spatial peak
-        peak_coords = cluster['peak'][1:] # skip spatial dimension
+        peak_coords = cluster['peak_coords'][1:] # skip spatial dimension
         spatial_data = data[:, *peak_coords]
         # Highlight spatial locations that are in the cluster at the peak
         spatial_mask = cluster['mask'][:, *peak_coords]
@@ -578,9 +577,9 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
                              ax=ax)
     # Add peak after
     if highlight == 'peak':
-        peak_t = xdata[cluster['peak'][1]]
+        peak_t = xdata[cluster['peak_coords'][1]]
         ax.axvline(peak_t, c='k', ls=':')
-        peak_y = masked[cluster['peak']]
+        peak_y = masked.flat[cluster['peak_flat']]
         handle = ax.scatter(peak_t, peak_y,
                             c='white', edgecolors='black',
                             label='Cluster peak')
@@ -626,7 +625,7 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     """
     # Highlight peak in front of cluster
     if highlight == 'peak':
-        ypeak, xpeak = cluster['peak'][-2:]
+        ypeak, xpeak = cluster['peak_coords'][-2:]
         handle = ax.scatter(x=xdata[xpeak],
                             y=ydata[ypeak],
                             c='white', edgecolors='black',
@@ -657,7 +656,7 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
         # Plot distribution over non-spatial dimension
         ax.plot(xdata, n_in_clust)
         if highlight == 'peak':
-            peak_x = xdata[cluster['peak'][1]]
+            peak_x = xdata[cluster['peak_coords'][1]]
             handle = ax.axvline(peak_x, c='k', ls=':',
                                 label='Cluster peak')
         # Labels

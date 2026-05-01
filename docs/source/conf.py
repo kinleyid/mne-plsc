@@ -17,8 +17,7 @@ extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.napoleon',
 	'nbsphinx',
-	'sphinx.ext.intersphinx',
-	"sphinx_gallery.gen_gallery"
+	'sphinx.ext.intersphinx'
 ]
 
 napoleon_numpy_docstring = True
@@ -53,7 +52,6 @@ nbsphinx_allow_errors = True
 # Set up for static rendering of surface images
 import pyvista as pv
 from mne.viz._brain import _BrainScraper as BrainScraper
-pv.BUILDING_GALLERY = True
 pv.set_plot_theme("document")
 pv.OFF_SCREEN = True
 os.environ["_MNE_BUILDING_DOC"] = "true"
