@@ -253,45 +253,6 @@ def add_freq_landmarks(axis):
     axis.set_ticks(freq_landmarks)
     axis.set_ticklabels([str(flm) for flm in freq_landmarks])
 
-def chan_image(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
-    f, ax = _get_ax(ax)
-    if vlim is None:
-        vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
-    # Determine xdata
-    if template.datatype == 'epo':
-        xdata = template.times
-        xlabel = 'Time (s)'
-    elif template.datatype == 'spec':
-        xdata = template.freqs
-        xlabel = 'Frequency (Hz)'
-    ydata = np.arange(template.info['nchan'])
-    # Draw bounding box
-    in_bounds = (~data.mask).sum(axis=0) > 0
-    start, end = get_1d_lims(in_bounds)
-    ax.axvline(xdata[start], c='k', ls=':')
-    ax.axvline(xdata[end], c='k', ls=':')
-    # Plot masked data
-    im = ax.pcolormesh(xdata,
-                       ydata,
-                       data, # Masked array
-                       cmap='RdBu_r',
-                       vmin=vlim[0],
-                       vmax=vlim[1])
-    # Draw contours
-    ax.contour(xdata,
-               ydata,
-               data.mask,
-               levels=[0.5],
-               corner_mask=False,
-               antialiased=False,
-               colors=['k'])
-    ax.set(yticks=ydata)
-    ax.set(yticklabels=template.info['ch_names'])
-    ax.set_xlabel(xlabel)
-    if cbar:
-        f.colorbar(im, ax=ax).set_label(vlabel)
-    return f, ax
-
 def get_raster_axis_data(template, xdim, ydim):
     # Get data
     dim_data = {
