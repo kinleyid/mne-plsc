@@ -48,13 +48,3 @@ html_theme = 'pydata_sphinx_theme'
 html_static_path = ['_static']
 
 nbsphinx_allow_errors = True
-
-# Set up for static rendering of surface images
-import pyvista as pv
-from mne.viz._brain import _BrainScraper as BrainScraper
-pv.set_plot_theme("document")
-pv.OFF_SCREEN = True
-os.environ["_MNE_BUILDING_DOC"] = "true"
-sphinx_gallery_conf = {
-    "image_scrapers": ("matplotlib", BrainScraper, "pyvista")
-}
