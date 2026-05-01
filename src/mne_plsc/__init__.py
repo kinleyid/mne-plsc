@@ -873,15 +873,15 @@ class PLSC():
             # Determine whether cluster peak is in left or right hemisphere
             lv_clusters = self.clusters[lv_idx]
             cluster = lv_clusters['clusters'][cluster_idx]
-            peak_vert, _ = cluster['peak']
-            if peak_vert < self.template.vertices[0].size:
+            vert_peak, time_peak = cluster['peak']
+            if vert_peak < self.template.vertices[0].size:
                 hemi = 'lh'
             else:
                 hemi = 'rh'
             # Convert to STC object for plotting
             stc = self.cluster_to_stc(lv_idx, cluster_idx)
             # Set colour limits
-            cmax = stc.data[*cluster['peak']]
+            cmax = np.abs(stc.data[*cluster['peak']])
             cmin = lv_clusters['info']['threshold']
             cmid = cmin
             clim = (cmin, cmid, cmax)
@@ -889,6 +889,7 @@ class PLSC():
             out = stc.plot(subjects_dir=self.template.subjects_dir,
                            hemi=hemi,
                            time_viewer=False,
+                           initial_time=stc.times[time_peak],
                            clim={'kind': 'value',
                                  'pos_lims': clim})
         else:

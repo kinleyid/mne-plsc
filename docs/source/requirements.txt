@@ -2,11 +2,6 @@ mne-plsc
 nbsphinx
 ipykernel
 pydata-sphinx-theme
-pyqt5
 ipywidgets
 ipyevents
-pyvista
-pyvistaqt
 darkdetect
-trame
-vtk
