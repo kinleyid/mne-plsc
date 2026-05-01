@@ -288,7 +288,7 @@ def chan_image(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
         f.colorbar(im, ax=ax).set_label(vlabel)
     return f, ax
 
-def get_raster_data(template, data, xdim, ydim):
+def get_raster_axis_data(template, xdim, ydim):
     # Get data
     dim_data = {
         'time': lambda: template.times,
@@ -297,6 +297,9 @@ def get_raster_data(template, data, xdim, ydim):
         'vert': lambda: np.arange(sum(len(v) for v in template.vertices))}
     xdata = dim_data[xdim]()
     ydata = dim_data[ydim]()
+    return xdata, ydata
+    
+def get_raster_labels(xdim, ydim):
     # Get labels
     dim_labels = {
         'time': 'Time (s)',
@@ -305,15 +308,27 @@ def get_raster_data(template, data, xdim, ydim):
         'vert': 'Source index'}
     xlabel = dim_labels[xdim]
     ylabel = dim_labels[ydim]
-    
-    return xdata, ydata, xlabel, ylabel
-    
-def plot_raster(template, data, xdim, ydim, vlabel, vlim=None, ax=None, cbar=True):
-    xdata, ydata, xlabel, ylabel = get_raster_data(template, data, xdim, ydim)
-    out = _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, vlim, ax, cbar)
-    return out
+    return xlabel, ylabel
+
+def plot_labeled_raster(template, data, xdim, ydim, vlabel=None, vlim=None, ax=None):
+    f, ax = _get_ax(ax)
+    xdata, ydata = get_raster_axis_data(template, xdim, ydim)
+    im = plot_raster(template, xdata, ydata, data, vlim, ax)
+    # Axis labels
+    xlabel, ylabel = get_raster_labels(xdim, ydim)
+    ax.set_xlabel(xlabel)
+    if ylabel is None:
+        # Channel labels
+        ax.set_yticks(np.arange(template.info['nchan']))
+        ax.set_yticklabels(template.info['ch_names'])
+    else:
+        ax.set_ylabel(ylabel)
+    if vlabel is not None:
+        f.colorbar(im, ax=ax).set_label(vlabel)
+    return f, ax
    
-def _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, vlim=None, ax=None, cbar=True):
+def plot_raster(template, xdata, ydata, data, vlim=None, ax=None):
+    # Just plot the data
     f, ax = _get_ax(ax)
     if vlim is None:
         vma = np.abs(data).max()
@@ -322,24 +337,12 @@ def _plot_raster_data(template, xdata, ydata, data, xlabel, ylabel, vlabel, vlim
                        cmap='RdBu_r',
                        vmin=vlim[0],
                        vmax=vlim[1])
-    # Set axis scales
+    # Check for log axis scales
     xscale = _check_log_scale(xdata)
     ax.set_xscale(xscale)
     yscale = _check_log_scale(ydata)
     ax.set_yscale(yscale)
-    # Axis labels
-    ax.set_xlabel(xlabel)
-    if ylabel is None:
-        # Channel labels
-        ax.set_yticks(np.arange(template.info['nchan']))
-        ax.set_yticklabels(template.info['ch_names'])
-    else:
-        ax.set_ylabel(ylabel)
-    # Colorbar and label
-    if cbar:
-        f = ax.figure
-        f.colorbar(im, ax=ax).set_label(vlabel)
-    return f, ax
+    return im
 
 def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
     f, ax = _get_ax(ax)
@@ -588,6 +591,7 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
     return f, ax
 
 def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
+    f, ax = _get_ax(ax)
     masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
     ydim, xdim = template.dimnames[-2:]
     if which == 'saliences':
@@ -600,21 +604,21 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     else:
         vlabel = data_desc.capitalize()
     # Get data for raster plot
-    xdata, ydata, xlabel, ylabel = get_raster_data(template, data, xdim, ydim)
+    xdata, ydata = get_raster_axis_data(template, xdim, ydim)
+    xlabel, ylabel = get_raster_labels(xdim, ydim)
     # Highlight extent behind cluster
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax, ydata)
     # Plot cluster
-    f, ax = _plot_raster_data(template,
-                              xdata=xdata,
-                              ydata=ydata,
-                              data=masked,
-                              xlabel=xlabel,
-                              ylabel=ylabel,
-                              vlabel=vlabel,
-                              ax=ax)
-    # Draw contours
+    im = plot_raster(template,
+                     xdata=xdata,
+                     ydata=ydata,
+                     data=masked,
+                     ax=ax)
+    # Add colour bar
+    f.colorbar(im, ax=ax).set_label(vlabel)
     """
+    # Draw contours---this doesn't look that good
     ax.contour(xdata,
                ydata,
                masked.mask,
@@ -740,14 +744,15 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                           xlabel=None,
                           ylabel=None)
                 """
-                plot_raster(template,
-                            scores[idx],
-                            xdim='time',
-                            ydim='freq',
-                            vlabel=None,
+                xdata, ydata = get_raster_axis_data(template,
+                                                    xdim='time',
+                                                    ydim='freq')
+                plot_raster(template=template,
+                            xdata=xdata,
+                            ydata=ydata,
+                            data=scores[idx],
                             vlim=(-vlim, vlim),
-                            ax=curr_ax,
-                            cbar=False)
+                            ax=curr_ax)
         # Shared colour bar
         cmap = cm.RdBu_r
         norm = colors.Normalize(vmin=-vlim, vmax=vlim)

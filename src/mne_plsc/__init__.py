@@ -675,19 +675,19 @@ class PLSC():
         elif self.template.datatype == 'tfr':
             # Show average
             tf_data = data.mean(axis=0)
-            viz.plot_raster(template=self.template,
-                            data=tf_data,
-                            xdim='time',
-                            ydim='freq',
-                            vlabel=avg_label,
-                            ax=ax)
+            viz.plot_labeled_raster(template=self.template,
+                                    data=tf_data,
+                                    xdim='time',
+                                    ydim='freq',
+                                    vlabel=avg_label,
+                                    ax=ax)
         elif self.template.datatype in ['surf-stc', 'vol-stc']:
-            viz.plot_raster(template=self.template,
-                            data=tf_data,
-                            xdim='time',
-                            ydim='vert',
-                            vlabel=label,
-                            ax=ax)
+            viz.plot_labeled_raster(template=self.template,
+                                    data=tf_data,
+                                    xdim='time',
+                                    ydim='vert',
+                                    vlabel=label,
+                                    ax=ax)
     def plot_lv(self, lv_idx, which='saliences'):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
