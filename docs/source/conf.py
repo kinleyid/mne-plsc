@@ -52,7 +52,7 @@ nbsphinx_allow_errors = True
 
 # Set up for static rendering of surface images
 import pyvista as pv
-from mne.viz._brain import BrainScraper
+from mne.viz._brain import _BrainScraper
 pv.BUILDING_GALLERY = True
 pv.set_plot_theme("document")
 pv.OFF_SCREEN = True
