@@ -477,7 +477,7 @@ class PLSC():
         elif size_measure == 'pct-total':
             sizes = 100*abs_sizes/self.template.size
         return sizes
-    def get_cluster_data(self, lv_idx=None, cluster_idx=None, val='mean'):
+    def get_cluster_data(self, lv_idx=None, cluster_idx=None):
         """
         SUMMARY.
 
@@ -487,8 +487,6 @@ class PLSC():
             DESCRIPTION. The default is None.
         cluster_idx : TYPE, optional
             DESCRIPTION. The default is None.
-        val : TYPE, optional
-            DESCRIPTION. The default is 'mean'.
 
         Returns
         -------
@@ -498,8 +496,6 @@ class PLSC():
         
         if not self._clustering_done:
             raise ValueError('Clustering needs to be done first via the cluster() method.')
-        _check_str_arg('val', val,
-                       ('mean', 'peak'))
         if lv_idx is None:
             lv_idx = list(range(self.model.n_sv_))
         else:
@@ -523,13 +519,10 @@ class PLSC():
                 df['lv_idx'] = curr_lv_idx
                 df['cluster_idx'] = curr_cluster_idx
                 curr_cluster = lv_clusters[curr_cluster_idx]
-                if val == 'mean':
-                    # Take average within cluster
-                    vals = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
-                elif val == 'peak':
-                    # Get data at cluster peak
-                    vals = self.model.data_[:, curr_cluster['peak_flat']]
-                df['cluster_%s' % val] = vals
+                # Take average within cluster
+                df['cluster_mean'] = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
+                # Get data at cluster peak
+                df['cluster_peak'] = self.model.data_[:, curr_cluster['peak_flat']]
                 dfs.append(df)
         return pd.concat(dfs)
         
