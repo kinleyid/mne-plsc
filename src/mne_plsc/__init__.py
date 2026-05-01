@@ -179,6 +179,7 @@ class PLSC():
         self.grouping = grouping #: ``str``: Used to specify whether data are specified by within-participants condition, between-participants condition, both, or neither.
         self._clustering_done = False
         self.null_dist = None #: ``numpy.ndarray``: Array contain null distribution of singular values. Set by :meth:`permute`.
+        self.clusters = None #: ``list``: A list of clusters per latent variable pair.
     '''
     def get_labels(self, per='lv', zipped=True):
         if self.grouping_ == 'both':
@@ -566,7 +567,8 @@ class PLSC():
         -------
         None
         """
-        
+        if not self._clustering_done:
+            raise ValueError('Clustering needs to be done first via the cluster() method.')
         if lv_idx is None:
             lv_idx = list(range(self.model.n_sv_))
         else:
@@ -587,6 +589,8 @@ class PLSC():
             for curr_cluster_idx in cluster_idx:
                 # Set up sub-dataframe for this cluster
                 df = self.model.design_.copy()
+                for i, cov in enumerate(self.model.covariate_names_):
+                    df[cov] = self.model.covariates_[:, i]
                 df['lv_idx'] = curr_lv_idx
                 df['cluster_idx'] = curr_cluster_idx
                 curr_cluster = lv_clusters[curr_cluster_idx]

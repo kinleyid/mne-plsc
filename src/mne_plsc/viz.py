@@ -109,6 +109,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
             pivoted = sub_df.pivot(index=index, columns=columns, values=pivot_values)
         yerr = _compute_yerr(pivoted['stat'], pivoted.get('L_CI', {}), pivoted.get('U_CI', {})) if with_ci else None
         pivoted['stat'].plot.bar(yerr=yerr, ax=curr_ax)
+        ax.axhline(y=0, c='k')
         curr_ax.set_xlabel(None)
         return curr_ax
 
@@ -483,7 +484,7 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
         ax.set_xscale('log')
     return f, ax
 
-def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=None):
+def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backend=None, ax=None):
     f, ax = _get_ax(ax)
     # Get colorbar labels
     if cluster_info['which'] == 'saliences':
@@ -527,8 +528,10 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, ax=No
                                  vertices=template.vertices,
                                  tmin=0, tstep=1,
                                  subject=template.subject) # TODO: does this make sense in general?
+        print('backend=matplotlib')
         stc.plot(subjects_dir='C:/Users/isaac/mne_data/MNE-sample-data/subjects',
-                 time_viewer=False)
+                 time_viewer=False,
+                 backend='matplotlib')
     elif template.datatype == 'vol-stc':
         spatial_data = spatial_data.reshape((-1, 1))
         spatial_data[~spatial_mask] = 0
@@ -615,17 +618,12 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax, ydata)
     # Plot cluster
-    im = plot_raster(template,
-                     xdata=xdata,
-                     ydata=ydata,
-                     data=masked,
-                     ax=ax)
-    # Labels
-    xlabel, ylabel = get_raster_labels(xdim, ydim)
-    if ydim == 'freq' and check_log_scale(ydata):
-        add_freq_landmarks(ax.yaxis) # for max future-proofing could also check for x
-    # Add colour bar
-    f.colorbar(im, ax=ax).set_label(vlabel)
+    plot_labeled_raster(template=template,
+                        data=masked,
+                        xdim=xdim,
+                        ydim=ydim,
+                        vlabel=vlabel,
+                        ax=ax)
     """
     # Draw contours---this doesn't look that good
     ax.contour(xdata,

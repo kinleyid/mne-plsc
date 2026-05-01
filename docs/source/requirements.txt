@@ -8,3 +8,5 @@ ipyevents
 pyvista
 pyvistaqt
 darkdetect
+trame
+vtk
