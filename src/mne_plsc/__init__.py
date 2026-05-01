@@ -170,9 +170,22 @@ def fit_within_beh(data,
 
 class PLSC():
     """
-    Container for PLSC model.
-    """
+    Container for PLSC models returned by :func:`fit_beh` and within-participants PLSC models returned by :func:`fit_within_beh`.
     
+    Parameters
+    ----------
+    template : :class:`Template`
+        A template object used for clustering and plotting.
+    model : :class:`pyplsc.PLSC`
+        A model that has been fit to some data.
+    grouping : ``str``
+        Specifies how data are stratified. Must be one of:
+            
+        - ``'between'``
+        - ``'within'``
+        - ``'both'``
+        - ``'neither'``
+    """
     def __init__(self, template, model, grouping):
         self.template = template #: :class:`Template`: A template containing storing channel positions etc. for plotting.
         self.model = model #: :class:`pyplsc.PLSC`: A PLSC model.
@@ -182,7 +195,7 @@ class PLSC():
         self.clusters = None #: ``list``: A list of clusters per latent variable pair.
     def summary(self):
         """
-        Summarize the model.
+        Summarize the model, including p values per latent variable pair if permutation has been done. See :meth:`permute`.
 
         Returns
         -------
@@ -215,11 +228,11 @@ class PLSC():
         
         Notes
         -----
-        p values are available through the :attr:`model.pvals_` attribute
+        p values are available through the :attr:`model.pvals_` attribute and can also be accessed using :meth:`summary`.
 
         Examples
         --------
-        >>> res.permute(n_perm=1000, n_jobs=-1)
+        >>> res.permute(n_perm=1000, n_jobs=-1) # Use max parallel jobs
         >>> res.summary()
         >>> print(res.model.pvals_)
         """
@@ -268,12 +281,29 @@ class PLSC():
                              return_boot_stat_dist=return_boot_stat_dist,
                              n_jobs=n_jobs,
                              print_prog=print_prog)
-    def add_source_info(self, src=None, t1=None, subjects_dir=None):
-        # TODO: document
+    def add_source_info(self, src=None, mri=None, subjects_dir=None):
+        """
+        Add information about source space for clustering and plotting.
+
+        Parameters
+        ----------
+        src : :class:`mne.SourceSpaces`, optional
+            Source spaces corresponding to the source time courses. The default is None.
+        mri : Niimg-like object, optional
+            Structural data, e.g., path to T1 scan file. The default is None.
+        subjects_dir : path-like, optional
+            Freesurfer subjects directory. The default is None.
+
+        Returns
+        -------
+        None
+        """
+        if not self.template.space == 'source':
+            raise ValueError('Data is not in source space.')
         if src is not None:
             self.template.src = src
-        if t1 is not None:
-            self.template.t1 = t1
+        if mri is not None:
+            self.template.mri = mri
         if subjects_dir is not None:
             self.template.subjects_dir = subjects_dir
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
@@ -878,9 +908,22 @@ class PLSC():
 
 class MCPLSC(PLSC):
     """
-    Mean-centred PLSC
-    """
+    Container for mean-centred PLSC models returned by :func:`fit_mc`.
     
+    Parameters
+    ----------
+    template : :class:`Template`
+        A template object used for clustering and plotting.
+    model : :class:`pyplsc.BDA`
+        A model that has been fit to some data.
+    grouping : ``str``
+        Specifies how data are stratified. Must be one of:
+            
+        - ``'between'``
+        - ``'within'``
+        - ``'both'``
+        - ``'neither'``
+    """
     def get_marginal_brain_scores(self, lv_idx, margin, average=True):
         """
         Compute marginal brain scores per condition across a specified margin. This generalizes the notion temporal brain scores from the original Matlab PLS.
@@ -967,29 +1010,35 @@ class MCPLSC(PLSC):
 
 class Template():
     """
-    Template containing channels, times, frequencies, etc. associated with the data. This is used 
+    Template containing channels, source info, times, frequencies, etc. associated with the data. This is used for clustering and plotting.
     """
     def __init__(self, source):
+        # Document attributes
+        self.src = None #: :class:`mne.SourceSpaces`: Source spaces of data, if applicable.
+        self.mri = None #: Niimg-like: Structural MRI data, if applicable.
+        self.subjects_dir = None #: path-like: Freesurfer subjects directory, if applicable.
         # Keep the useful info without the data
         if isinstance(source, list):
             source = source[0]
         # Infer datatype
-        self.datatype = utils.infer_datatype(source)
+        self.datatype = utils.infer_datatype(source) #: ``str``: Specifies the type of the data.
         # Determine sensors space vs source space
         if self.datatype in ['epo', 'spec', 'tfr']:
-            self.space = 'sensor'
+            space = 'sensor'
         elif self.datatype in ['surf-stc', 'vol-stc']:
-            self.space = 'source'
+            space = 'source'
+        self.space = space #: ``str``: Specifies whether the data is in sensor or source space
         # Get shape of data, ignoring epochs dimension
         if self.datatype in ['surf-stc', 'vol-stc']:
             data = source.data
         else:
             data = source.get_data()
         if utils.is_epochs(source, datatype=self.datatype):
-            self.shape = data.shape[1:]
+            shape = data.shape[1:]
         else:
-            self.shape = data.shape
-        self.size = np.prod(self.shape)
+            shape = data.shape
+        self.shape = shape #: ``tuple``: Specifies the original shape of the data.
+        self.size = np.prod(self.shape) #: ``int``: Size of data.
         # Get names of data dimensions
         dimnames = {
             'epo':      ('chan', 'time'),
@@ -997,17 +1046,15 @@ class Template():
             'tfr':      ('chan', 'freq', 'time'),
             'vol-stc':  ('vert', 'time'),
             'surf-stc': ('vert', 'time')}
-        self.dimnames = dimnames[self.datatype]
-        self.ndim = len(self.dimnames)
+        self.dimnames = dimnames[self.datatype] #: ``tuple``: Names of dimensions of data.
+        self.ndim = len(self.dimnames) #: ``int``: Number of dimensions in data.
         if self.space == 'sensor':
-            self.info = source.info
+            self.info = source.info #: :class:`mne.Info`: MNE Info object for data.
         elif self.space == 'source':
-            self.vertices = source.vertices
+            self.vertices = source.vertices #: ``list``: List of vertices copied from stc object.
+        self.times = None #: ``numpy.ndarray``: Times, copied from data
+        self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
+        self.subject = None #: ``str``: Freesurfer subject name, copied from data
         for attr in ['times', 'freqs', 'subject']:
             if attr in dir(source):
                 setattr(self, attr, getattr(source, attr))
-    def set_src(self, src):
-        # TODO: validate
-        self.src = src
-    def set_t1(self, t1):
-        self.t1 = t1
