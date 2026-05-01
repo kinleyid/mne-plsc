@@ -13,6 +13,7 @@ build:
   jobs:
     post_install:
       - pip install pyvista
+      - pip install pyvistaqt
       - pip uninstall vtk -y
       - pip install --extra-index-url https://wheels.vtk.org vtk-osmesa
 
