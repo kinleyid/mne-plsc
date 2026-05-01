@@ -112,8 +112,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
         curr_ax.set_xlabel(None)
         return curr_ax
 
-    if 'covariate' in df:
-        # Beh PLS
+    if boot_stat == 'score-covariate-corr':
         if grouping == 'both':
             groups = list(df.groupby('between'))
             ax = _subdivide_ax(ax, nrows=len(groups))
@@ -132,6 +131,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
                     curr_ax.tick_params(axis='x',
                                         bottom=False,
                                         labelbottom=False)
+                curr_ax.set_ylabel('Correlation with brain score')
         else:
             if grouping == 'neither':
                 pivot_index = None
@@ -143,9 +143,8 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
             ax.tick_params(axis='x',
                            bottom=False,
                            labelbottom=False)
-        f.supylabel('Correlation with brain score')
-    else:
-        # MC PLS
+            ax.set_ylabel('Correlation with brain score')
+    elif boot_stat in ['condwise-scores', 'condwise-scores-centred']:
         if grouping == 'both':
             ax = _pivot_and_plot(df, index='between', columns='within', curr_ax=ax)
             ax.get_legend().set_title(None)
