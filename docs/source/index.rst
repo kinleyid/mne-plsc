@@ -63,6 +63,8 @@ Examine the temporal/spectral/spatial distribution of the major clusters for a g
    mod.plot_cluster_sizes(lv_idx=0)
    mod.plot_cluster(lv_idx=0, cluster_idx=0)
 
+See the examples for more details.
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
