@@ -54,3 +54,5 @@ Examine the temporal/spectral/spatial distribution of the major clusters for a g
 mod.plot_cluster_sizes(lv_idx=0)
 mod.plot_cluster(lv_idx=0, cluster_idx=0)
 ```
+
+See the examples in the [documentation](https://mne-plsc.readthedocs.io) for more details.
