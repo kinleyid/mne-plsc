@@ -7,3 +7,4 @@ Model fitting
 
    fit_beh
    fit_mc
+   fit_within_beh
