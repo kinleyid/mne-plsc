@@ -8,7 +8,7 @@
 
 ## Installation
 
-`mne-plsc` can be installed from pypi with
+`mne-plsc` can be installed from the Python Package Index with
 
 ```
 pip install mne-plsc
@@ -22,7 +22,7 @@ The main functions for model fitting are `fit_mc`, `fit_beh`, and `fit_within_be
 
 Perform the initial decomposition and check the patterns of saliences.
 
-```
+```python
 from mne_plsc import fit_mc
 mod = fit_mc(epochs, condition)
 mod.plot_lv(0)
@@ -32,7 +32,7 @@ mod.plot_lv(0)
 
 Evaluate which latent variables are significant.
 
-```
+```python
 mod.permute(1000)
 print(model.summary())
 ```
@@ -41,7 +41,7 @@ print(model.summary())
 
 Perform bootstrap resampling to estimate brain salience z-scores, then cluster strong saliences (e.g., :math:`|z| > 2`).
 
-```
+```python
 mod.bootstrap(1000)
 mod.cluster(threshold=2)
 ```
@@ -50,7 +50,7 @@ mod.cluster(threshold=2)
 
 Examine the temporal/spectral/spatial distribution of the major clusters for a given set of brain saliences.
 
-```
+```python
 mod.plot_cluster_sizes(lv_idx=0)
 mod.plot_cluster(lv_idx=0, cluster_idx=0)
 ```
