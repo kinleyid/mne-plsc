@@ -15,12 +15,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
@@ -32,4 +30,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
+          flags: py${{ matrix.python-version }}
+          name: py${{ matrix.python-version }}
           fail_ci_if_error: true
