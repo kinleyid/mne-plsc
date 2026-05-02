@@ -6,7 +6,7 @@
 mne-plsc
 ========
 
-``mne-plsc`` is a library for partial least squares correlation (PLSC) analysis of M/EEG data in Python, integrated with the MNE-Python library. The basic computations are performed by the `pyplsc <https://pyplsc.readthedocs.io/>`_ library, and the documentation of that library contains some background on the PLSC technique.
+``mne-plsc`` is a library for partial least squares correlation (PLSC) analysis of M/EEG data in Python, integrated with the `MNE-Python <https://mne.tools/>`_ library. The basic computations are performed by the `pyplsc <https://pyplsc.readthedocs.io/>`_ library, and the documentation of that library contains some background on the PLSC technique.
 
 Installation
 ------------
