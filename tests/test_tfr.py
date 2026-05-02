@@ -45,7 +45,7 @@ def run_result_plots(result):
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
         result.plot_marginal_brain_scores(lv_idx=0, margin='chan')
-    result.plot_clusters(lv_idx=0, cluster_idx=[0, 1])
+    result.plot_cluster(lv_idx=0, cluster_idx=0)
     result.plot_lv(lv_idx=0)
     plt.close('all')
 

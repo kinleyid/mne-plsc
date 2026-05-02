@@ -100,17 +100,17 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
                                pivoted_u[col] - pivoted_stat[col]])
                 for col in pivoted_stat.columns}
 
-    def _pivot_and_plot(sub_df, index, columns, curr_ax):
+    def _pivot_and_plot(sub_df, index, columns, ax):
         pivot_values = ['stat'] + (['L_CI', 'U_CI'] if with_ci else [])
         if index is None:
             pivoted = sub_df.pivot(columns=columns, values=pivot_values)
         else:
             pivoted = sub_df.pivot(index=index, columns=columns, values=pivot_values)
         yerr = _compute_yerr(pivoted['stat'], pivoted.get('L_CI', {}), pivoted.get('U_CI', {})) if with_ci else None
-        pivoted['stat'].plot.bar(yerr=yerr, ax=curr_ax)
+        pivoted['stat'].plot.bar(yerr=yerr, ax=ax)
         ax.axhline(y=0, c='k')
-        curr_ax.set_xlabel(None)
-        return curr_ax
+        ax.set_xlabel(None)
+        return ax
 
     if boot_stat == 'score-covariate-corr':
         if grouping == 'both':
@@ -119,7 +119,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
             for ax_idx, (group, sub_df) in enumerate(groups):
                 curr_ax = ax[ax_idx, 0]
                 curr_ax.set_title(group)
-                _pivot_and_plot(sub_df, index='within', columns='covariate', curr_ax=curr_ax)
+                _pivot_and_plot(sub_df, index='within', columns='covariate', ax=curr_ax)
                 legend = curr_ax.get_legend()
                 # Show legend only for first axis
                 if ax_idx == 0:
@@ -137,7 +137,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
                 pivot_index = None
             else:
                 pivot_index = grouping
-            ax = _pivot_and_plot(df, index=pivot_index, columns='covariate', curr_ax=ax)
+            ax = _pivot_and_plot(df, index=pivot_index, columns='covariate', ax=ax)
             ax.get_legend().set_title(None)
             # x ticks are not meaningful
             ax.tick_params(axis='x',
@@ -146,7 +146,7 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
             ax.set_ylabel('Correlation with brain score')
     elif boot_stat in ['condwise-scores', 'condwise-scores-centred']:
         if grouping == 'both':
-            ax = _pivot_and_plot(df, index='between', columns='within', curr_ax=ax)
+            ax = _pivot_and_plot(df, index='between', columns='within', ax=ax)
             ax.get_legend().set_title(None)
             ylim = ax.get_ylim()
             ax.set_ylim((ylim[0], 1.5 * ylim[1]))
