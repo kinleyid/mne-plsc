@@ -2,6 +2,8 @@
 Examples
 ========
 
+Below are a set of examples of how to use ``mne-plsc`` to analyze data that ships with MNE-Python.
+
 .. toctree::
    :maxdepth: 1
 

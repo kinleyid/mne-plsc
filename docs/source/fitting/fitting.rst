@@ -2,6 +2,8 @@
 Model fitting
 =============
 
+Below are the functions used to fit models.
+
 .. toctree::
    :maxdepth: 1
 

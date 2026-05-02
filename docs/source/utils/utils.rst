@@ -2,6 +2,8 @@
 Utility functions
 =================
 
+Below are various utility functions for working with M/EEG data.
+
 .. toctree::
    :maxdepth: 1
 
