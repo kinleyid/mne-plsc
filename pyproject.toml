@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mne-plsc"
 dependencies = ["mne", "pyplsc", "numpy", "pandas", "matplotlib", "nibabel", "nilearn"]
-version = "0.0.17"
+version = "0.0.18"
 description = "PLSC for MNE"
 authors = [{ name="Isaac Kinley", email="isaac.kinley@gmail.com" }]
 readme = "README.md"
