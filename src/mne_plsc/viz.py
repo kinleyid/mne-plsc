@@ -469,9 +469,12 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
     elif highlight == 'peak':
         # Get spatial data at non-spatial peak
         peak_coords = cluster['peak_coords'][1:] # skip spatial dimension
-        spatial_data = data[:, *peak_coords]
+        idx = (slice(None),) + peak_coords
+        # spatial_data = data[:, *peak_coords]
+        spatial_data = data[idx]
         # Highlight spatial locations that are in the cluster at the peak
-        spatial_mask = cluster['mask'][:, *peak_coords]
+        # spatial_mask = cluster['mask'][:, *peak_coords]
+        spatial_mask = cluster['mask'][idx]
     if template.space == 'sensor':
         im, _ = mne.viz.plot_topomap(data=spatial_data,
                                      pos=template.info,
