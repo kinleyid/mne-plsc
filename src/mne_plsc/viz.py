@@ -496,7 +496,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         vol = image.index_img(vol, 0)
         # Display image
         plotting.plot_stat_map(vol,
-                               bg_img=template.t1,
+                               bg_img=template.mri,
                                symmetric_cbar=True,
                                draw_cross=False,
                                axes=ax)
