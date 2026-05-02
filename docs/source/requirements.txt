@@ -1,7 +1,7 @@
 mne-plsc
 nbsphinx
-ipykernel
+sphinx-gallery
 pydata-sphinx-theme
+ipykernel
 ipywidgets
 ipyevents
-darkdetect
