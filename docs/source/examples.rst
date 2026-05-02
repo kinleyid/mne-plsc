@@ -9,6 +9,7 @@ Below are a set of examples of how to use ``mne-plsc`` to analyze data that ship
 
    notebooks/mc-erp
    notebooks/beh-erp
+   notebooks/multi-subject-analysis
    notebooks/mc-spec
    notebooks/mc-tfr
    notebooks/mc-surf-stc

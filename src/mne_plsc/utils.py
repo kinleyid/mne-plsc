@@ -29,7 +29,7 @@ def get_epoch_labels(epochs):
 
 def average_epochs_by_label(epochs_list, between=None):
     """
-    From a list of epoch data, get a list of 
+    From a list of epoch data, get a list of average data, one per epoch label per participant, and a design matrix.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def average_epochs_by_label(epochs_list, between=None):
     data_list : ``list``
         List containing epoch averages
     design : `pd.DataFrame`
-        Design matrix specify
+        Design matrix
         
     Examples
     --------
@@ -54,13 +54,56 @@ def average_epochs_by_label(epochs_list, between=None):
     if between is not None:
         if len(epochs_list) != len(between):
             raise ValueError('epochs_list and between must be of the same length')
-    # Here data is a list of MNE objects
     data_list = []
     rows = []
     for ptpt_idx, ptpt_data in enumerate(epochs_list):
-        labels = get_epoch_labels(ptpt_data)
+        labels = set(get_epoch_labels(ptpt_data))
         for label in labels:
             avg = ptpt_data[label].average()
+            row = {'within': label, 'participant': ptpt_idx}
+            if between is not None:
+                row['between'] = between[ptpt_idx]
+            data_list.append(avg)
+            rows.append(row)
+    design = pd.DataFrame.from_records(rows)
+    return data_list, design
+
+def average_epochs_by_metadata(epochs_list, column, between=None):
+    """
+    From a list of epoch data, get a list of average data, one per unique value in a metadata column per participant, and a design matrix.
+
+    Parameters
+    ----------
+    epochs_list : :class:`mne.Epochs` | :class:`mne.time_frequency.EpochsSpectrum` | :class:`mne.time_frequency.EpochsTFR`
+        MNE data object containing epoch data.
+    column : ``str``
+        Name of the column in each epoch's metadata containing a variable that should be used to stratify observations. I.e., the name of the column containing the within-subjects experimental condition.
+    between : iterable
+        Iterable of between-participants condition labels corresponding to each element in ``epochs_list``.
+
+    Returns
+    -------
+    data_list : ``list``
+        List containing epoch averages
+    design : `pd.DataFrame`
+        Design matrix
+        
+    Examples
+    --------
+    >>> labels = get_epoch_labels(epo)
+    """
+    if not isinstance(epochs_list, list):
+        raise ValueError('data must be a list of recordings')
+    if between is not None:
+        if len(epochs_list) != len(between):
+            raise ValueError('epochs_list and between must be of the same length')
+    data_list = []
+    rows = []
+    for ptpt_idx, ptpt_data in enumerate(epochs_list):
+        cond = ptpt_data.metadata[column]
+        labels = cond.unique()
+        for label in labels:
+            avg = ptpt_data[cond == label].average()
             row = {'within': label, 'participant': ptpt_idx}
             if between is not None:
                 row['between'] = between[ptpt_idx]
