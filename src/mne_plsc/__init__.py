@@ -444,7 +444,6 @@ class PLSC():
         self.clusters = clusters
         self._clustering_done = True
     def _get_cluster(self, lv_idx, cluster_idx, return_data=True):
-        # TODO: give this a more obscure name because it's obscure
         lv_clusters = self.clusters[lv_idx]
         info = lv_clusters['info']
         # Create copy of cluster and add mask
@@ -463,7 +462,7 @@ class PLSC():
             reshaped = data.copy().reshape(self.template.shape)
             out += (reshaped,)
         return out
-    def cluster_to_stc(self, lv_idx, cluster_idx):
+    def _cluster_to_stc(self, lv_idx, cluster_idx):
         cluster, _, data = self._get_cluster(lv_idx, cluster_idx)
         data[~cluster['mask']] = 0
         times = self.template.times * 1000 # s to ms
@@ -834,7 +833,7 @@ class PLSC():
             else:
                 hemi = 'rh'
             # Convert to STC object for plotting
-            stc = self.cluster_to_stc(lv_idx, cluster_idx)
+            stc = self._cluster_to_stc(lv_idx, cluster_idx)
             # Set colour limits
             cmax = np.abs(stc.data.flat[cluster['peak_flat']])
             cmin = cluster_info['threshold']
