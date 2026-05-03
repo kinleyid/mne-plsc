@@ -41,6 +41,7 @@ def run_result_plots(result):
     result.plot_brain_sals(lv_idx=0, which='saliences')
     result.plot_cluster_sizes(lv_idx=0)
     result.plot_cluster_sizes(lv_idx=0, size_measure='absolute', n_clust=1)
+    result.plot_cluster_sizes(lv_idx=0, size_measure='pct-total')
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
         result.plot_marginal_brain_scores(lv_idx=0, margin='chan')
@@ -56,6 +57,7 @@ def run_result_plots(result):
     plt.close('all')
 
 def run_result_methods(result):
+    result.plot_scree()
     result.add_adjacency()
     result.add_adjacency(montage_name='biosemi16')
     result.cluster()
