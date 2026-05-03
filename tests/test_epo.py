@@ -143,3 +143,10 @@ def test_beh_within(sample_data):
                               participant=participant,
                               random_state=123)
     run_result_methods(result)
+    
+def test_beh_neither(sample_data):
+    data, covariates, between, within, participant = sample_data
+    result = mne_plsc.fit_beh(data=data,
+                              covariates=covariates,
+                              random_state=123)
+    run_result_methods(result)

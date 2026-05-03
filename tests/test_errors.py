@@ -53,3 +53,5 @@ def test_errs(sample_data):
         res.get_cluster_sizes(0)
     with pytest.raises(Exception):
         res.get_cluster_data(0)
+    with pytest.raises(Exception):
+        res.get_marginal_brain_scores(0, 'freq')
