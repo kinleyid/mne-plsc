@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 from mne.datasets import sample
 from mne.minimum_norm import read_inverse_operator
+from pathlib import Path
 
 import matplotlib
 matplotlib.use('Agg', force=True)
@@ -14,7 +15,7 @@ matplotlib.use('Agg', force=True)
 from pdb import set_trace
 
 @pytest.fixture
-def sample_data():
+def sample_data(request):
     np.random.seed(123)
     n_ptpt = 10
     between = ['b1']*n_ptpt + ['b2']*n_ptpt
@@ -43,7 +44,8 @@ def sample_data():
     inverse_operator = read_inverse_operator(fname_inv)
     src = inverse_operator['src']
     '''
-    src = mne.read_source_spaces('fixtures/surf-src.fif')
+    fixture_path = Path(request.fspath.dirpath()) / "fixtures"
+    src = mne.read_source_spaces(fixture_path / 'surf-src.fif')
     return stcs, covariates, between, within, participant, src
 
 def run_result_plots(result):
