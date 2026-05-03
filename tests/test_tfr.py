@@ -55,10 +55,10 @@ def run_result_plots(result):
 
 def run_result_methods(result):
     result.add_adjacency()
-    result.cluster()
     result.permute(10)
     result.bootstrap(10)
     result.cluster(which='z-scores')
+    result.cluster()
     run_result_plots(result)
 
 def test_mc_both(sample_data):

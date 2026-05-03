@@ -49,3 +49,7 @@ def test_errs(sample_data):
     res.add_adjacency()
     with pytest.raises(Exception):
         res.cluster(which='z-scores')
+    with pytest.raises(Exception):
+        res.get_cluster_sizes(0)
+    with pytest.raises(Exception):
+        res.get_cluster_data(0)

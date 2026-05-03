@@ -38,6 +38,7 @@ def sample_data():
 def run_result_plots(result):
     result.plot_boot_stat(0)
     result.plot_brain_sals(lv_idx=0)
+    result.plot_brain_sals(lv_idx=0, which='saliences')
     result.plot_cluster_sizes(lv_idx=0)
     result.plot_cluster_sizes(lv_idx=0, size_measure='absolute', n_clust=1)
     if 'plot_marginal_brain_scores' in dir(result):
