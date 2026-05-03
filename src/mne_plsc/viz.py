@@ -287,35 +287,6 @@ def get_spatial_colours(info):
     x, y, z = locs3d.T
     return _rgb(x, y, z)
 
-def plot_lv_epochs(template, data, axes):
-    tmp = template.copy()
-    tmp._data = 1e-6 * np.reshape(data, tmp._data.shape)
-    # Butterfly plot
-    tmp.plot(axes=axes, show=False)
-    # tmp.plot_joint(show=True)
-    # Remove title
-    axes.set_title(None)
-    # Remove Nave text
-    axes.texts[1].remove()
-
-def plot_lv_tfr(template, data, axes):
-    tmp = template.copy()
-    tmp._data = np.reshape(data, tmp.shape)
-    tmp.plot(axes=axes, combine='mean', show=False)
-    # TODO: options for log transforming
-
-def plot_lv_psd(template, data, axes):
-    tmp = template.copy()
-    tmp._data = 1e-12 * np.reshape(data, tmp.shape)
-    tmp.plot(axes=axes, dB=False, amplitude=False, show=False)
-    axes.grid(False)
-    axes.set_title(None)
-    # Remove vertical lines
-    # axes.lines[0].remove()
-    # axes.lines[1].remove()
-    axes.set_xlabel('Frequency (Hz)')
-    # TODO: options for log transforming
-
 def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=None):
     f, ax = _get_ax(ax)
     ax.axhline(0, color='k', linestyle='--')

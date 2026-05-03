@@ -40,6 +40,7 @@ def sample_data():
     return evoked_data, covariates, between, within, participant
 
 def run_result_plots(result):
+    result.plot_scree()
     result.plot_boot_stat(0)
     result.plot_brain_sals(lv_idx=0)
     result.plot_cluster_sizes(lv_idx=0)
