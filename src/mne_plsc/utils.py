@@ -160,38 +160,6 @@ def get_datamat(data, datatype):
         datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
     return datamat
 
-def get_indicators(design=None, between=None, within=None, participant=None):
-    indicators = dict(
-        between=between,
-        within=within,
-        participant=participant)
-    if design is not None:
-        for colname in indicators:
-            if indicators[colname] is not None:
-                indicators[colname] = design[colname]
-    # Convert to pd.Categorical and get integer labels and category labels
-    labels = dict()
-    for k in indicators:
-        if indicators[k] is not None:
-            # Convert to categories
-            indicators[k] = pd.Categorical(indicators[k])
-            if k != 'participant': # Don't need to keep track of participants
-                labels[k] = indicators[k].categories
-            indicators[k] = indicators[k].codes
-    indicators = tuple(indicators[k] for k in ['between', 'within', 'participant'])
-    return labels, indicators
-
-def get_grouping_old(labels):
-    # Figure out if data is grouped by a between-subjects
-    # variable, a within-subjects variable, both, or neither
-    if 'between' in labels and 'within' in labels:
-        grouping = 'both'
-    elif 'between' in labels or 'within' in labels:
-        grouping = 'between' if 'between' in labels else 'within'
-    else:
-        grouping = 'neither'
-    return grouping
-
 def get_grouping(between, within):
     # Figure out if data is grouped by a between-subjects
     # variable, a within-subjects variable, both, or neither
