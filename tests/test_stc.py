@@ -23,10 +23,11 @@ def sample_data():
     times = np.arange(0, 1, 1/sfreq)
     n_vert = 10
     array_data = np.random.normal(size=(2*n_ptpt, n_vert, len(times)))
+    array_data = np.concat([array_data]*2)
     array_data[between == 'b2'] += 1
     array_data[between == 'w2'] += 1
     stc = mne.SourceEstimate(data=array_data,
-                             vertices=[np.arange(n_vert)],
+                             vertices=[np.arange(n_vert)]*2,
                              tmin=times[0],
                              tstep=1/sfreq,
                              subject='fsaverage')
