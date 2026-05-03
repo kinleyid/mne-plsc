@@ -282,48 +282,6 @@ def plot_raster(template, xdata, ydata, data, vlim=None, ax=None):
         ax.set_yscale('log')
     return im
 
-def space_raster(template, data, cbar=True, vlabel=None, vlim=None, ax=None):
-    f, ax = _get_ax(ax)
-    if vlim is None:
-        vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
-    xdata = template.times
-    if template.space == 'sensor':
-        ydata = np.arange(template.info['nchan'])
-    elif template.space == 'source':
-        n_vert = sum([len(v) for v in template.vertices])
-        ydata = np.arange(n_vert)
-        
-    im = ax.pcolormesh(xdata,
-                       ydata,
-                       data, # Potentially masked array
-                       cmap='RdBu_r',
-                       vmin=vlim[0],
-                       vmax=vlim[1])
-    if np.ma.is_masked(data):
-        # Draw contours
-        ax.contour(xdata,
-                   ydata,
-                   data.mask,
-                   levels=[0.5],
-                   corner_mask=False,
-                   antialiased=False,
-                   colors=['k'])
-    # Labels for y axis
-    if template.space == 'sensor':
-        ydata = np.arange(template.info['nchan'])
-    elif template.space == 'source':
-        ax.set_ylabel('Source index')
-    # Labels for x axis
-    nonspace_dim = template.dimnames[1]
-    if nonspace_dim == 'time':
-        ax.set_xlabel('Time (s)')
-    elif nonspace_dim == 'freq':
-        ax.set_xlabel('Frequency (Hz)')
-    # Colorbar
-    if cbar:
-        f.colorbar(im, ax=ax).set_label(vlabel)
-    return f, ax
-
 def get_spatial_colours(info):
     locs3d = np.array([ch['loc'][:3] for ch in info['chs']])
     x, y, z = locs3d.T
