@@ -166,7 +166,7 @@ def fit_within_beh(data,
               design=design_list,
               covariates=covariates,
               within=within)
-    return PLSC(template, model, grouping='within')
+    return PLSC(template, model, grouping='between')
 
 class PLSC():
     """
@@ -689,7 +689,7 @@ class PLSC():
                                     ax=ax)
         elif self.template.datatype in ['surf-stc', 'vol-stc']:
             viz.plot_labeled_raster(template=self.template,
-                                    data=tf_data,
+                                    data=data,
                                     xdim='time',
                                     ydim='vert',
                                     vlabel=label,

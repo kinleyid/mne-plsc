@@ -208,7 +208,7 @@ def get_non_margin_axes(margin, datatype):
     mapping = {
         'time': {'epo': 0,
                  'tfr': (0, 1),
-                 'surf-src': 0,
+                 'surf-stc': 0,
                  'vol-stc': 0},
         'freq': {'spec': 0,
                  'tfr': (0, 2)},

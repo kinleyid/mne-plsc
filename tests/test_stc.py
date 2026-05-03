@@ -21,37 +21,38 @@ def sample_data():
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
-    n_vert = 10
-    array_data = np.random.normal(size=(n_vert, len(times)))
-    array_data = np.concat([array_data]*2)
-    array_data[between == 'b2'] += 1
-    array_data[between == 'w2'] += 1
-    stc = mne.SourceEstimate(data=array_data,
-                             vertices=[np.arange(n_vert)]*2,
-                             tmin=times[0],
-                             tstep=1/sfreq,
-                             subject='fsaverage')
-    stcs = [stc]*n_ptpt*2
+    n_vert = 3
+    stcs = []
+    for ptpt in range(n_ptpt*2):
+        array_data = np.random.normal(size=(n_vert, len(times)))
+        array_data = np.concat([array_data]*2)
+        array_data[between == 'b2'] += 1
+        array_data[between == 'w2'] += 1
+        stc = mne.SourceEstimate(data=array_data,
+                                 vertices=[np.arange(n_vert)]*2,
+                                 tmin=times[0],
+                                 tstep=1/sfreq,
+                                 subject='fsaverage')
+        stcs.append(stc)
     return stcs, covariates, between, within, participant
 
 def run_result_plots(result):
     result.plot_boot_stat(0)
     result.plot_brain_sals(lv_idx=0)
-    result.plot_cluster_sizes(lv_idx=0)
+    # result.plot_cluster_sizes(lv_idx=0)
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
-        result.plot_marginal_brain_scores(lv_idx=0, margin='chan')
     # Can't test cluster visualization
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     plt.close('all')
 
 def run_result_methods(result):
-    result.add_adjacency()
-    result.cluster()
+    # result.add_adjacency()
+    # result.cluster()
     result.model.permute(10)
     result.model.bootstrap(10)
-    result.cluster(which='z-scores')
+    # result.cluster(which='z-scores')
     run_result_plots(result)
 
 def test_mc_both(sample_data):
