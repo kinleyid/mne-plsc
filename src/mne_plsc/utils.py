@@ -220,16 +220,6 @@ def get_non_margin_axes(margin, datatype):
     non_margin_axes = mapping[margin][datatype]
     return non_margin_axes
 
-def get_1d_lims(bool_array):
-    diff = np.diff(bool_array.astype(int))
-    start = np.where(diff == 1)[0] + 1
-    end = np.where(diff == -1)[0]
-    if bool_array[0]:
-        start = np.r_[0, start]
-    if bool_array[-1]:
-        end = np.r_[end, len(bool_array) - 1]
-    return start, end
-
 def get_cluster_extent(mask):
     # Sum over spatial dimension
     mask = mask.sum(axis=0) > 0
