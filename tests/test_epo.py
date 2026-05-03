@@ -48,6 +48,7 @@ def run_result_plots(result):
     result.plot_cluster(lv_idx=0, cluster_idx=0, highlight='extent')
     result.plot_cluster(lv_idx=0, cluster_idx=0, highlight='extent', plot_type='distribution')
     result.plot_cluster(lv_idx=0, cluster_idx=0, highlight='peak', plot_type='distribution')
+    result.plot_cluster(lv_idx=0, cluster_idx=0, plot_type='raster')
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     result.plot_scree()
