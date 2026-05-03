@@ -39,6 +39,7 @@ def run_result_plots(result):
     result.plot_boot_stat(0)
     result.plot_brain_sals(lv_idx=0)
     result.plot_cluster_sizes(lv_idx=0)
+    result.plot_cluster_sizes(lv_idx=0, size_measure='absolute', n_clust=1)
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
         result.plot_marginal_brain_scores(lv_idx=0, margin='chan')
@@ -48,13 +49,14 @@ def run_result_plots(result):
                         plot_type='distribution')
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
+    result.plot_scree()
     plt.close('all')
 
 def run_result_methods(result):
     result.add_adjacency()
     result.cluster()
-    result.model.permute(10)
-    result.model.bootstrap(10)
+    result.permute(10)
+    result.bootstrap(10)
     result.cluster(which='z-scores')
     run_result_plots(result)
 

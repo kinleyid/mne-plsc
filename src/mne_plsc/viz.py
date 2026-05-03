@@ -328,7 +328,7 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
 
 ### For plotting clusters
 
-def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=None):
+def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', ax=None):
     f, ax = _get_ax(ax)
     x = np.arange(len(cluster_sizes))
     ax.plot(x, cluster_sizes)
@@ -340,8 +340,6 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', logx=False, ax=
         ax.set_ylabel('Cluster size (% of strong saliences)')
     elif size_measure == 'pct-total':
         ax.set_ylabel('Cluster size (% of neural variables)')
-    if logx:
-        ax.set_xscale('log')
     return f, ax
 
 def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backend=None, ax=None):

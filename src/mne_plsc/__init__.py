@@ -717,7 +717,7 @@ class PLSC():
         self.plot_brain_sals(lv_idx, ax=ax[0], which=which)
         self.plot_boot_stat(lv_idx, ax=ax[1])
         return f, ax
-    def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, logx=False, ax=None):
+    def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, ax=None):
         """
         Create a plot of cluster sizes from largest to smallest.
 
@@ -729,8 +729,6 @@ class PLSC():
             Specifies how cluster size should be measured. See :meth:`get_cluster_sizes`. The default is `'pct-strong'`.
         n_clust : ``int``, optional
             Number of clusters, starting from largest, to plot. Default is ``None``, which displays all clusters.
-        logx : bool, optional
-            If ``True``, x axis will be on a log scale. Default is ``False``.
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -745,7 +743,6 @@ class PLSC():
             cluster_sizes = cluster_sizes[:n_clust]
         out = viz.plot_cluster_sizes(cluster_sizes=cluster_sizes,
                                      size_measure=size_measure,
-                                     logx=logx,
                                      ax=ax)
         return out
     def plot_cluster_nonspatial(self, lv_idx, cluster_idx, highlight='none', plot_type='auto', ax=None):
