@@ -657,25 +657,3 @@ def plot_cluster_extent(xdata, cluster, ax, ydata=None):
                                edgecolor='none',
                                label='Cluster extent')
     return handle
-
-def plot_clust_nchan_epochs(template, mask, axes):
-    n_chan = mask.sum(axis=0)
-    axes.plot(template.times[[0, -1]], [len(template.info['ch_names'])]*2, 'k:')
-    axes.plot(template.times, n_chan, 'k')
-    axes.set_xlabel('Time (s)')
-    axes.set_ylabel('Channels in cluster')
-
-def plot_clust_nchan_psd(template, mask, axes):
-    n_chan = mask.sum(axis=0)
-    axes.plot(template.freqs[[0, -1]], [len(template.info['ch_names'])]*2, 'k:')
-    axes.plot(template.freqs, n_chan, 'k')
-    axes.set_xlabel('Frequency (Hz)')
-    axes.set_ylabel('Channels in cluster')
-
-def plot_topomap(template, data, ch_mask, axes, top_ppn=0.2):
-    
-    out = mne.viz.plot_topomap(
-        data, template.info,
-        axes=axes, mask=ch_mask, show=False)
-    
-    return out
