@@ -216,35 +216,6 @@ def check_log_scale(data):
         out = np.allclose(ratios, ratios[0])
     return out
 
-def tfr_image(template, data, cbar=True, vlabel=None, ax=None, vlim=None, ylabel='Frequency (Hz)', xlabel='Time (s)'):
-    f, ax = _get_ax(ax)
-    if vlim is None:
-        vlim = tuple(np.array([-1, 1]) * np.abs(data).max())
-    # Determine if log-scale
-    ratios = template.freqs[1:] / template.freqs[:-1]
-    if np.allclose(ratios, ratios[0]):
-        yscale = 'log'
-    else:
-        yscale = 'linear'
-    im = ax.pcolormesh(template.times,
-                       template.freqs,
-                       data,
-                       cmap='RdBu_r',
-                       vmin=vlim[0],
-                       vmax=vlim[1])
-    ax.set_yscale(yscale)
-    freq_landmarks = np.array([1, 4, 8, 13, 20, 30, 40, 80])
-    ylims = ax.get_ylim()
-    in_range = (freq_landmarks > ylims[0]) & (freq_landmarks < ylims[1])
-    freq_landmarks = freq_landmarks[in_range]
-    ax.set_yticks(freq_landmarks)
-    ax.set_yticklabels([str(flm) for flm in freq_landmarks])
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    if cbar:
-        f.colorbar(im, ax=ax).set_label(vlabel)
-    return f, ax
-
 def add_freq_landmarks(axis):
     freq_landmarks = np.array([1, 4, 8, 13, 20, 30, 40, 80])
     lims = axis.get_view_interval()
@@ -698,15 +669,6 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
                     axes=curr_ax,
                     show=False)
             elif margin == 'time-freq':
-                """
-                tfr_image(template,
-                          scores[idx],
-                          ax=curr_ax,
-                          cbar=False,
-                          vlim=(-vlim, vlim),
-                          xlabel=None,
-                          ylabel=None)
-                """
                 xdata, ydata = get_raster_axis_data(template,
                                                     xdim='time',
                                                     ydim='freq')

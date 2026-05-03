@@ -20,7 +20,8 @@ def sample_data():
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
-    freqs = np.linspace(5, 25, 20)
+    # freqs = np.linspace(5, 25, 20)
+    freqs = np.exp(np.linspace(np.log(5), np.log(25), 20))
     montage = mne.channels.make_standard_montage('biosemi16')
     info = mne.create_info(ch_names=montage.ch_names,
                            sfreq=sfreq,
