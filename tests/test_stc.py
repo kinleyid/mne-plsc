@@ -5,6 +5,8 @@ import mne_plsc
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
+from mne.datasets import sample
+from mne.minimum_norm import read_inverse_operator
 
 import matplotlib
 matplotlib.use('Agg', force=True)
@@ -34,7 +36,12 @@ def sample_data():
                                  tstep=1/sfreq,
                                  subject='fsaverage')
         stcs.append(stc)
-    return stcs, covariates, between, within, participant
+    data_path = sample.data_path()
+    meg_path = data_path / "MEG" / "sample"
+    fname_inv = meg_path / "sample_audvis-meg-oct-6-meg-inv.fif"
+    inverse_operator = read_inverse_operator(fname_inv)
+    src = inverse_operator['src']
+    return stcs, covariates, between, within, participant, src
 
 def run_result_plots(result):
     result.plot_boot_stat(0)
@@ -47,34 +54,35 @@ def run_result_plots(result):
     result.plot_scores(lv_idx=0)
     plt.close('all')
 
-def run_result_methods(result):
-    # result.add_adjacency()
-    # result.cluster()
+def run_result_methods(result, src):
+    result.add_source_info(src=src)
+    result.add_adjacency()
+    result.cluster()
     result.model.permute(10)
     result.model.bootstrap(10)
     # result.cluster(which='z-scores')
     run_result_plots(result)
 
 def test_mc_both(sample_data):
-    data, _, between, within, participant = sample_data
+    data, _, between, within, participant, src = sample_data
     result = mne_plsc.fit_mc(data=data,
                                  between=between,
                                  within=within,
                                  participant=participant,
                                  random_state=123)
-    run_result_methods(result)
+    run_result_methods(result, src)
 
 def test_mc_within(sample_data):
-    data, _, between, within, participant = sample_data
+    data, _, between, within, participant, src = sample_data
     result = mne_plsc.fit_mc(data=data,
                                  within=within,
                                  participant=participant,
                                  random_state=123)
-    run_result_methods(result)
+    run_result_methods(result, src)
 
 def test_beh_args(sample_data):
     # Test different methods of providing data
-    data, covariates, between, within, participant = sample_data
+    data, covariates, between, within, participant, src = sample_data
     mne_plsc.fit_beh(data=data,
                      covariates=covariates[:, 0],
                      random_state=123)
@@ -99,7 +107,7 @@ def test_beh_args(sample_data):
 
 def test_mc_args(sample_data):
     # Test different methods of providing data
-    data, covariates, between, within, participant = sample_data
+    data, covariates, between, within, participant, src = sample_data
     design = pd.DataFrame(covariates,
                           columns=['cov1', 'cov2'])
     design['group'] = between
@@ -118,20 +126,20 @@ def test_mc_args(sample_data):
                     random_state=123)
 
 def test_beh_both(sample_data):
-    data, covariates, between, within, participant = sample_data
+    data, covariates, between, within, participant, src = sample_data
     result = mne_plsc.fit_beh(data=data,
                               covariates=covariates,
                               between=between,
                               within=within,
                               participant=participant,
                               random_state=123)
-    run_result_methods(result)
+    run_result_methods(result, src)
     
 def test_beh_within(sample_data):
-    data, covariates, between, within, participant = sample_data
+    data, covariates, between, within, participant, src = sample_data
     result = mne_plsc.fit_beh(data=data,
                               covariates=covariates,
                               within=within,
                               participant=participant,
                               random_state=123)
-    run_result_methods(result)
+    run_result_methods(result, src)
