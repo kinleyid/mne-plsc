@@ -54,8 +54,10 @@ def run_result_plots(result):
 
 def run_result_methods(result):
     result.add_adjacency()
+    result.add_adjacency(montage_name='biosemi16')
     result.cluster()
     result.permute(10)
+    result.summary()
     result.bootstrap(10)
     result.cluster(which='z-scores')
     run_result_plots(result)
