@@ -19,7 +19,8 @@ def sample_data():
     participant = np.cumsum([1, 0]*n_ptpt)
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 100
-    freqs = np.linspace(5, 25, 20)
+    # freqs = np.linspace(5, 25, 20)
+    freqs = np.exp(np.linspace(np.log(5), np.log(25), 20))
     montage = mne.channels.make_standard_montage('biosemi16')
     info = mne.create_info(ch_names=montage.ch_names,
                            sfreq=sfreq,

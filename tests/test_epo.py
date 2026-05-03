@@ -52,6 +52,7 @@ def run_result_plots(result):
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     result.plot_scree()
+    result.plot_scree(which='singular-vals')
     plt.close('all')
 
 def run_result_methods(result):
