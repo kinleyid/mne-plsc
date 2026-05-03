@@ -156,9 +156,9 @@ def fit_within_beh(data,
     
     if not isinstance(data, list):
         data = [data]
-    datamat_list = [utils.get_datamat(ptpt) for ptpt in data]
-    design_list = [ptpt.metadata for ptpt in data]
     template = Template(data)
+    datamat_list = [utils.get_datamat(ptpt, template.datatype) for ptpt in data]
+    design_list = [ptpt.metadata for ptpt in data]
     model = pyplsc.WPLSC(boot_stat=boot_stat,
                          svd_method=svd_method,
                          random_state=random_state)
