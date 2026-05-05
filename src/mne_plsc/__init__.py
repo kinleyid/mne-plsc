@@ -1063,7 +1063,6 @@ class Template():
         self.domain = None #: TODO: document
         _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
-        set_trace()
         # Infer datatype
         if isinstance(obj, list):
             inst = obj[0]
@@ -1135,7 +1134,7 @@ class Template():
         # Get shape of data, ignoring epochs dimension if any
         if self.space == 'sensor':
             data = inst.get_data()
-            if '__len__' in dir(obj):
+            if '__len__' in dir(inst):
                 # Ignore epoch dimension
                 self.shape = data.shape[1:]
             else:
