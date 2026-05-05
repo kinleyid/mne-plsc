@@ -26,7 +26,8 @@ def fit_beh(data,
             between=None,
             within=None,
             participant=None,
-            domain='auto',
+            source_domain=None,
+            source_freqs=None,
             boot_stat='score-covariate-corr',
             svd_method='lapack',
             random_state=None):
@@ -60,7 +61,9 @@ def fit_beh(data,
         PLSC object fit to the data.
     """
     
-    template = Template(data, domain)
+    template = Template(data,
+                        source_domain=source_domain,
+                        source_freqs=source_freqs)
     datamat = utils.get_datamat(data, template)
     model = pyplsc.PLSC(boot_stat,
                         svd_method,
@@ -79,8 +82,8 @@ def fit_mc(data,
            between=None,
            within=None,
            participant=None,
-           src_domain='auto',
-           src_freqs=None,
+           source_domain=None,
+           source_freqs=None,
            effects='all',
            boot_stat='condwise-scores-centred',
            svd_method='lapack',
@@ -114,8 +117,8 @@ def fit_mc(data,
     """
     
     template = Template(data,
-                        src_domain=src_domain,
-                        src_freqs=src_freqs)
+                        source_domain=source_domain,
+                        source_freqs=source_freqs)
     datamat = utils.get_datamat(data, template)
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
@@ -132,7 +135,8 @@ def fit_mc(data,
 def fit_within_beh(data,
                    covariates,
                    within=None,
-                   domain='auto',
+                   source_domain=None,
+                   source_freqs=None,
                    boot_stat='score-covariate-corr',
                    svd_method='lapack',
                    random_state=None):
@@ -162,7 +166,9 @@ def fit_within_beh(data,
     
     if not isinstance(data, list):
         data = [data]
-    template = Template(data, domain)
+    template = Template(data,
+                        source_domain=source_domain,
+                        source_freqs=source_freqs)
     datamat_list = [utils.get_datamat(ptpt, template) for ptpt in data]
     design_list = [ptpt.metadata for ptpt in data]
     model = pyplsc.WPLSC(boot_stat=boot_stat,
@@ -1044,7 +1050,7 @@ class Template():
     """
     Template containing channels, source info, times, frequencies, etc. associated with the data. This is used for clustering and plotting.
     """
-    def __init__(self, source, src_domain=None, src_freqs=None):
+    def __init__(self, source, source_domain=None, source_freqs=None):
         # Document attributes
         self.src = None #: :class:`mne.SourceSpaces`: Source spaces of data, if applicable.
         self.mri = None #: Niimg-like: Structural MRI data, if applicable.
@@ -1056,7 +1062,7 @@ class Template():
         self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
         self.subject = None #: ``str``: Freesurfer subject name, copied from data
         self.domain = None #: TODO: document
-        _check_str_arg('domain', src_domain,
+        _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
         # Infer datatype
         if isinstance(source, list):
@@ -1066,7 +1072,7 @@ class Template():
                 # List of lists implies source-space time-frequency
                 self.space = 'source' # Redundant with later code but no harm
                 self.domain = 'time-freq'
-                if src_freqs is None:
+                if source_freqs is None:
                     raise ValueError('Frequencies must be specified for time-frequency data in source space')
         else:
             inst = source
@@ -1085,12 +1091,12 @@ class Template():
                     self.source_type = 'surface'
                     self.datatype = 'surf-stc'
                 if self.domain is None:
-                    if src_domain is None:
+                    if source_domain is None:
                         # No way of inferring domain of STCs programmatically
                         print('Assuming time-domain source-space data. If data is actually freq- or time-freq-domain, specify this explicitly')
                         self.domain = 'time'
                     else:
-                        self.domain = src_domain
+                        self.domain = source_domain
             else:
                 self.space = 'sensor'
                 if 'freqs' in attrs:
@@ -1107,8 +1113,8 @@ class Template():
             self.info = inst.info #: :class:`mne.Info`: MNE Info object for data.
         elif self.space == 'source':
             self.vertices = inst.vertices #: ``list``: List of vertices copied from stc object.
-        if src_freqs is not None:
-            self.freqs = np.array(src_freqs)
+        if source_freqs is not None:
+            self.freqs = np.array(source_freqs)
         # Get names of data dimensions
         self.dimnames = ()
         # Start with spatial dimension
