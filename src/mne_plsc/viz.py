@@ -230,7 +230,8 @@ def get_raster_axis_data(template, xdim, ydim):
         'time': lambda: template.times,
         'freq': lambda: template.freqs,
         'chan': lambda: np.arange(template.info['nchan']),
-        'vert': lambda: np.arange(sum(len(v) for v in template.vertices))}
+        'vert': lambda: np.arange(sum(len(v) for v in template.vertices)),
+        'vox':  lambda: np.arange(sum(len(v) for v in template.vertices))}
     xdata = dim_data[xdim]()
     ydata = dim_data[ydim]()
     return xdata, ydata
