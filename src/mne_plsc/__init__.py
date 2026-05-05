@@ -48,6 +48,14 @@ def fit_beh(data,
         An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
     participant : iterable | ``str``, optional
         An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    source_domain : ``str``, optional
+        If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
+        
+        - ``'time'`` For output of :func:`mne.minimum_norm.apply_inverse`, :func:`mne.beamformer.apply_lcmv`, etc. This is assumed by default.
+        - ``'freq'`` For output of :func:`mne.minimum_norm.apply_inverse_cov`, :func:`mne.beamformer.apply_dics`, etc.
+        - ``'time-freq'`` For output of :func:`mne.minimum_norm.apply_dics_tfr_epochs, :func:`mne.beamformer.apply_dics_tfr_epochs`, etc.
+    source_freqs : ``numpy.ndarray``, optional
+        If model is fit to source-space data and source domain is time or time-frequency, this argument specifies the frequencies in the source data.
     boot_stat : ``str``, optional
         Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``. See :class:`pyplsc.PLSC` for details.
     svd_method : ``str``, optional
@@ -103,6 +111,14 @@ def fit_mc(data,
         An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
     participant : iterable | ``str``, optional
         An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    source_domain : ``str``, optional
+        If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
+        
+        - ``'time'`` For output of :func:`mne.minimum_norm.apply_inverse`, :func:`mne.beamformer.apply_lcmv`, etc. This is assumed by default.
+        - ``'freq'`` For output of :func:`mne.minimum_norm.apply_inverse_cov`, :func:`mne.beamformer.apply_dics`, etc.
+        - ``'time-freq'`` For output of :func:`mne.minimum_norm.apply_dics_tfr_epochs, :func:`mne.beamformer.apply_dics_tfr_epochs`, etc.
+    source_freqs : ``numpy.ndarray``, optional
+        If model is fit to source-space data and source domain is time or time-frequency, this argument specifies the frequencies in the source data.
     boot_stat : ``str``, optional
         Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``. See :class:`pyplsc.BDA` for details.
     svd_method : ``str``, optional
@@ -151,6 +167,14 @@ def fit_within_beh(data,
         An iterable of strings specifying the name(s) of the columns in the ``.metadata`` of each object in ``data`` that contain the covariates.
     within : ``str``, optional
         A string specifying the name of a column in the ``.metadata`` of each object in ``data`` that contains an indicator of within-participants condition. The default is ``None``, which does not stratify observations by within-participants condition.
+    source_domain : ``str``, optional
+        If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
+        
+        - ``'time'`` For output of :func:`mne.minimum_norm.apply_inverse`, :func:`mne.beamformer.apply_lcmv`, etc. This is assumed by default.
+        - ``'freq'`` For output of :func:`mne.minimum_norm.apply_inverse_cov`, :func:`mne.beamformer.apply_dics`, etc.
+        - ``'time-freq'`` For output of :func:`mne.minimum_norm.apply_dics_tfr_epochs, :func:`mne.beamformer.apply_dics_tfr_epochs`, etc.
+    source_freqs : ``numpy.ndarray``, optional
+        If model is fit to source-space data and source domain is time or time-frequency, this argument specifies the frequencies in the source data.
     boot_stat : ``str``, optional
         Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
     svd_method : ``str``, optional
@@ -935,6 +959,8 @@ class PLSC():
                                       cluster_idx=cluster_idx,
                                       highlight=highlight,
                                       ax=ax_right)
+    def save(self, save_path):
+        raise NotImplementedError()
 
 class MCPLSC(PLSC):
     """
