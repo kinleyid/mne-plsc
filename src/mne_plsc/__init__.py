@@ -6,6 +6,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from mne.stats.cluster_level import _find_clusters
+import os, pathlib, lzma, pickle
 
 from . import utils, viz
 
@@ -959,8 +960,53 @@ class PLSC():
                                       cluster_idx=cluster_idx,
                                       highlight=highlight,
                                       ax=ax_right)
-    def save(self, save_path):
-        raise NotImplementedError()
+    def save(self, path):
+        """
+        Save a model to .xz using the LZMA algorithm. This is a thin wrapper around python's ``lzma`` library.
+
+        Parameters
+        ----------
+        path : ``str``
+            Path to model. If no extension is included, .xz will be added.
+
+        Returns
+        -------
+        None
+        """
+        
+        path = pathlib.Path(path)
+        file, ext = os.path.splitext(path)
+        if ext == '':
+            path = path.with_suffix('.xz')
+            basename = os.path.basename(path)
+            print('Saving to %s' % basename)
+        with lzma.open(path, "wb") as f:
+            pickle.dump(self, f)
+
+def load(path):
+    """
+    Load a model from .xz. This is a thin wrapper around Python's ``lzma`` library.
+
+    Parameters
+    ----------
+    path : ``str``
+        Path to model. If no extension is included, .xz will be added.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+    """
+    
+    path = pathlib.Path(path)
+    file, ext = os.path.splitext(path)
+    if ext == '':
+        path = path.with_suffix('.xz')
+        basename = os.path.basename(path)
+        print('Loading %s' % basename)
+    with lzma.open(path, 'rb') as f:
+        model = pickle.load(f)
+    return model
 
 class MCPLSC(PLSC):
     """
