@@ -462,6 +462,8 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
         data_desc = 'salience'
     elif which == 'z-scores':
         data_desc = 'bootstrap ratio (z score)'
+    else:
+        raise ValueError(which)
     if template.domain == 'time-freq':
         # Average over spatial dimension
         masked = masked.mean(axis=0)
@@ -473,7 +475,7 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
         vlabel = 'Mean %s over %s in cluster' % (data_desc, spatial_dim)
     else:
         vlabel = data_desc.capitalize()
-    plot_cluster_raster(data, template, cluster, highlight, vlabel, ax)
+    plot_cluster_raster(masked, template, cluster, highlight, vlabel, ax)
 
 def plot_cluster_raster(data, template, cluster, highlight, vlabel, ax):
     # Get dimensions being plotted
@@ -486,48 +488,6 @@ def plot_cluster_raster(data, template, cluster, highlight, vlabel, ax):
     # Plot cluster
     plot_labeled_raster(template=template,
                         data=data,
-                        xdim=xdim,
-                        ydim=ydim,
-                        vlabel=vlabel,
-                        ax=ax)
-    # Highlight peak in front of cluster
-    if highlight == 'peak':
-        ypeak, xpeak = cluster['peak_coords'][-2:]
-        handle = ax.scatter(x=xdata[xpeak],
-                            y=ydata[ypeak],
-                            c='white', edgecolors='black',
-                            label='Cluster peak')
-    if highlight != 'none':
-        ax.legend(handles=[handle],
-                  loc='upper right')
-
-def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
-    f, ax = _get_ax(ax)
-    masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
-    ydim, xdim = template.dimnames[-2:]
-    if which == 'saliences':
-        data_desc = 'salience'
-    elif which == 'z-scores':
-        data_desc = 'bootstrap ratio (z score)'
-    if template.domain == 'time-freq':
-        # Average over spatial dimension
-        masked = masked.mean(axis=0)
-        name_mapping = {
-            'chan': 'channels',
-            'vert': 'vertices',
-            'vox': 'voxels'}
-        spatial_dim = name_mapping[template.dimnames[0]]
-        vlabel = 'Mean %s over %s in cluster' % (data_desc, spatial_dim)
-    else:
-        vlabel = data_desc.capitalize()
-    # Get data for raster plot
-    xdata, ydata = get_raster_axis_data(template, xdim, ydim)
-    # Highlight extent behind cluster
-    if highlight == 'extent':
-        handle = plot_cluster_extent(xdata, cluster, ax, ydata)
-    # Plot cluster
-    plot_labeled_raster(template=template,
-                        data=masked,
                         xdim=xdim,
                         ydim=ydim,
                         vlabel=vlabel,
