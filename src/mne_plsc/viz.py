@@ -242,7 +242,8 @@ def get_raster_labels(xdim, ydim):
         'time': 'Time (s)',
         'freq': 'Frequency (Hz)',
         'chan': None,
-        'vert': 'Source index'}
+        'vert': 'Vertex index',
+        'vox': 'Voxel index'}
     xlabel = dim_labels[xdim]
     ylabel = dim_labels[ydim]
     return xlabel, ylabel
