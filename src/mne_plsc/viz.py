@@ -454,6 +454,53 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
         ax.legend(handles=[handle])
     return f, ax
 
+def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
+    f, ax = _get_ax(ax)
+    masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
+    ydim, xdim = template.dimnames[-2:]
+    if which == 'saliences':
+        data_desc = 'salience'
+    elif which == 'z-scores':
+        data_desc = 'bootstrap ratio (z score)'
+    if template.domain == 'time-freq':
+        # Average over spatial dimension
+        masked = masked.mean(axis=0)
+        name_mapping = {
+            'chan': 'channels',
+            'vert': 'vertices',
+            'vox': 'voxels'}
+        spatial_dim = name_mapping[template.dimnames[0]]
+        vlabel = 'Mean %s over %s in cluster' % (data_desc, spatial_dim)
+    else:
+        vlabel = data_desc.capitalize()
+    plot_cluster_raster(data, template, cluster, highlight, vlabel, ax)
+
+def plot_cluster_raster(data, template, cluster, highlight, vlabel, ax):
+    # Get dimensions being plotted
+    ydim, xdim = template.dimnames[-2:]
+    # Get axis data for raster plot
+    xdata, ydata = get_raster_axis_data(template, xdim, ydim)
+    # Highlight extent behind cluster
+    if highlight == 'extent':
+        handle = plot_cluster_extent(xdata, cluster, ax, ydata)
+    # Plot cluster
+    plot_labeled_raster(template=template,
+                        data=data,
+                        xdim=xdim,
+                        ydim=ydim,
+                        vlabel=vlabel,
+                        ax=ax)
+    # Highlight peak in front of cluster
+    if highlight == 'peak':
+        ypeak, xpeak = cluster['peak_coords'][-2:]
+        handle = ax.scatter(x=xdata[xpeak],
+                            y=ydata[ypeak],
+                            c='white', edgecolors='black',
+                            label='Cluster peak')
+    if highlight != 'none':
+        ax.legend(handles=[handle],
+                  loc='upper right')
+
 def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
     f, ax = _get_ax(ax)
     masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
@@ -485,16 +532,6 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
                         ydim=ydim,
                         vlabel=vlabel,
                         ax=ax)
-    """
-    # Draw contours---this doesn't look that good
-    ax.contour(xdata,
-               ydata,
-               masked.mask,
-               levels=[0.5],
-               corner_mask=False,
-               antialiased=False,
-               colors=['k'])
-    """
     # Highlight peak in front of cluster
     if highlight == 'peak':
         ypeak, xpeak = cluster['peak_coords'][-2:]
@@ -519,6 +556,15 @@ def get_nonspatial_dim(template):
 def plot_cluster_distribution(template, cluster, highlight, ax=None):
     # Plot the distribution of the cluster over non-spatial axes
     f, ax = _get_ax(ax)
+    # Get label spatial dim
+    spatial_dim = template.dimnames[0]
+    if spatial_dim == 'vert':
+        spatial_units = 'vertices'
+    elif spatial_dim == 'vox':
+        spatial_units = 'voxels'
+    elif spatial_dim == 'chan':
+        spatial_units = 'channels'
+    spatial_label = 'N. %s in cluster' % spatial_units
     if len(template.dimnames) == 2:
         n_in_clust = cluster['mask'].sum(0)
         # Data and label for non-spatial dimension
@@ -538,17 +584,19 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
             if template.dimnames[1] == 'freq':
                 add_freq_landmarks(ax.xaxis)
         # Label spatial dim
-        spatial_dim = template.dimnames[0]
-        if spatial_dim == 'vert':
-            ylabel = 'N. vertices in cluster'
-        else:
-            ylabel = 'N. channels in cluster'
+        ax.set_ylabel(spatial_label)
+        if spatial_dim == 'chan':
             ax.set_ylim((0, template.info['nchan']))
-        ax.set_ylabel(ylabel)
         if highlight != 'none':
             ax.legend(handles=[handle])
     elif template.domain == 'time-freq':
-        raise NotImplementedError()
+        n_in_clust = cluster['mask'].sum(axis=0)
+        plot_cluster_raster(data=n_in_clust,
+                            template=template,
+                            cluster=cluster,
+                            highlight=highlight,
+                            vlabel=spatial_label,
+                            ax=ax)
     return f, ax
 
 def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=None):
