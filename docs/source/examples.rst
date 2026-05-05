@@ -15,6 +15,5 @@ Below are a set of examples of how to use ``mne-plsc`` to analyze data that ship
    notebooks/mc-tfr
    notebooks/mc-surf-stc
    notebooks/mc-vol-stc
-   notebooks/mc-freq-src
    notebooks/plot-sensor-clusters
    notebooks/mc-vs-ems
