@@ -51,6 +51,7 @@ def run_result_plots(result):
     result.plot_cluster(lv_idx=0, cluster_idx=0, highlight='extent')
     with pytest.raises(Exception):
         result.plot_cluster(lv_idx=0, cluster_idx=0, plot_type='butterfly')
+    result.plot_cluster(lv_idx=0, cluster_idx=0, plot_type='distribution')
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     plt.close('all')
