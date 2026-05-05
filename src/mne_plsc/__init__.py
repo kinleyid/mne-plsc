@@ -439,7 +439,6 @@ class PLSC():
                 adjacency=self.template.adjacency)
             # Sort largest to smallest
             idxs.sort(key=len, reverse=True)
-            set_trace()
             print('%s clusters' % len(idxs))
             # Get peaks of each cluster
             peaks = []
@@ -1050,7 +1049,7 @@ class Template():
     """
     Template containing channels, source info, times, frequencies, etc. associated with the data. This is used for clustering and plotting.
     """
-    def __init__(self, source, source_domain=None, source_freqs=None):
+    def __init__(self, obj, source_domain=None, source_freqs=None):
         # Document attributes
         self.src = None #: :class:`mne.SourceSpaces`: Source spaces of data, if applicable.
         self.mri = None #: Niimg-like: Structural MRI data, if applicable.
@@ -1064,9 +1063,10 @@ class Template():
         self.domain = None #: TODO: document
         _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
+        set_trace()
         # Infer datatype
-        if isinstance(source, list):
-            inst = source[0]
+        if isinstance(obj, list):
+            inst = obj[0]
             if isinstance(inst, list):
                 inst = inst[0]
                 # List of lists implies source-space time-frequency
@@ -1075,7 +1075,7 @@ class Template():
                 if source_freqs is None:
                     raise ValueError('Frequencies must be specified for time-frequency data in source space')
         else:
-            inst = source
+            inst = obj
         attrs = dir(inst)
         if 'times' not in attrs:
             self.space = 'sensor'
@@ -1135,7 +1135,7 @@ class Template():
         # Get shape of data, ignoring epochs dimension if any
         if self.space == 'sensor':
             data = inst.get_data()
-            if '__len__' in dir(data):
+            if '__len__' in dir(obj):
                 # Ignore epoch dimension
                 self.shape = data.shape[1:]
             else:
