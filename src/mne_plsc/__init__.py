@@ -26,6 +26,7 @@ def fit_beh(data,
             between=None,
             within=None,
             participant=None,
+            domain='auto',
             boot_stat='score-covariate-corr',
             svd_method='lapack',
             random_state=None):
@@ -59,8 +60,8 @@ def fit_beh(data,
         PLSC object fit to the data.
     """
     
-    template = Template(data)
-    datamat = utils.get_datamat(data, datatype=template.datatype)
+    template = Template(data, domain)
+    datamat = utils.get_datamat(data, template)
     model = pyplsc.PLSC(boot_stat,
                         svd_method,
                         random_state)
@@ -78,6 +79,8 @@ def fit_mc(data,
            between=None,
            within=None,
            participant=None,
+           src_domain='auto',
+           src_freqs=None,
            effects='all',
            boot_stat='condwise-scores-centred',
            svd_method='lapack',
@@ -110,8 +113,10 @@ def fit_mc(data,
         MCPLSC object fit to the data.
     """
     
-    template = Template(data)
-    datamat = utils.get_datamat(data, datatype=template.datatype)
+    template = Template(data,
+                        src_domain=src_domain,
+                        src_freqs=src_freqs)
+    datamat = utils.get_datamat(data, template)
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state)
@@ -127,6 +132,7 @@ def fit_mc(data,
 def fit_within_beh(data,
                    covariates,
                    within=None,
+                   domain='auto',
                    boot_stat='score-covariate-corr',
                    svd_method='lapack',
                    random_state=None):
@@ -156,8 +162,8 @@ def fit_within_beh(data,
     
     if not isinstance(data, list):
         data = [data]
-    template = Template(data)
-    datamat_list = [utils.get_datamat(ptpt, template.datatype) for ptpt in data]
+    template = Template(data, domain)
+    datamat_list = [utils.get_datamat(ptpt, template) for ptpt in data]
     design_list = [ptpt.metadata for ptpt in data]
     model = pyplsc.WPLSC(boot_stat=boot_stat,
                          svd_method=svd_method,
@@ -281,7 +287,7 @@ class PLSC():
                              return_boot_stat_dist=return_boot_stat_dist,
                              n_jobs=n_jobs,
                              print_prog=print_prog)
-    def add_source_info(self, src=None, mri=None, subjects_dir=None):
+    def add_source_info(self, src=None, mri=None, subjects_dir=None, freqs=None):
         """
         Add information about source space for clustering and plotting.
 
@@ -306,6 +312,9 @@ class PLSC():
             self.template.mri = mri
         if subjects_dir is not None:
             self.template.subjects_dir = subjects_dir
+        if freqs is not None:
+            self.template.freqs = np.array(freqs)
+            self.template.domain = 'freq'
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
         """
         Add adjacency matrix for clustering.
@@ -343,7 +352,7 @@ class PLSC():
             spatial_adj = ch_adj
         elif self.template.space == 'source':
             if self.template.src is None:
-                raise ValueError('Source space must be specified to compute spatial adjacency. See add_src()')
+                raise ValueError('Source space must be specified to compute spatial adjacency. See add_source_info()')
             # TODO: other options for surface source spaces
             spatial_adj = mne.spatial_src_adjacency(self.template.src)
         dim_adjs = (spatial_adj,) + self.template.shape[1:]
@@ -402,7 +411,7 @@ class PLSC():
             threshold = [threshold]*self.model.n_sv_
         
         if signed == 'auto':
-            if self.template.datatype in ['epo', 'surf-stc', 'vol-stc']:
+            if self.template.domain == 'time':
                 print('Defaulting to unsigned clustering')
                 signed = False
             else:
@@ -424,6 +433,7 @@ class PLSC():
                 adjacency=self.template.adjacency)
             # Sort largest to smallest
             idxs.sort(key=len, reverse=True)
+            set_trace()
             print('%s clusters' % len(idxs))
             # Get peaks of each cluster
             peaks = []
@@ -467,6 +477,11 @@ class PLSC():
         data[~cluster['mask']] = 0
         times = self.template.times * 1000 # s to ms
         tstep = np.diff(times)[0]
+        if self.template.domain == 'time-freq':
+            # Average over frequencies in cluster
+            masked = np.ma.masked_array(data=data,
+                                        mask=~cluster['mask'])
+            data = np.array(masked.mean(axis=1))
         stc = mne.SourceEstimate(data=data,
                                  vertices=self.template.vertices,
                                  tmin=times[0],
@@ -678,7 +693,7 @@ class PLSC():
                                  xlabel=xlabel,
                                  ylabel=label,
                                  ythresh=ythresh)
-        elif self.template.datatype == 'tfr':
+        elif self.template.domain == 'time-freq':
             # Show average
             tf_data = data.mean(axis=0)
             viz.plot_labeled_raster(template=self.template,
@@ -688,10 +703,11 @@ class PLSC():
                                     vlabel=avg_label,
                                     ax=ax)
         elif self.template.datatype in ['surf-stc', 'vol-stc']:
+            ydim, xdim = self.template.dimnames
             viz.plot_labeled_raster(template=self.template,
                                     data=data,
-                                    xdim='time',
-                                    ydim='vert',
+                                    xdim=xdim,
+                                    ydim=ydim,
                                     vlabel=label,
                                     ax=ax)
     def plot_lv(self, lv_idx, which='saliences'):
@@ -771,7 +787,7 @@ class PLSC():
         if plot_type == 'auto':
             if self.template.datatype in ['epo', 'spec']:
                 plot_type = 'butterfly'
-            elif self.template.datatype in ['tfr']:
+            elif self.template.domain == 'time-freq':
                 plot_type = 'raster'
             elif self.template.datatype in ['surf-stc', 'vol-stc']:
                 plot_type = 'distribution'
@@ -820,27 +836,41 @@ class PLSC():
             DESCRIPTION.
         """
         
-        if self.template.datatype == 'surf-stc':
+        if self.template.source_type == 'surface':
             # Interactive surface plot
             # Determine whether cluster peak is in left or right hemisphere
             cluster, cluster_info = self._get_cluster(lv_idx, cluster_idx, return_data=False)
-            vert_peak, time_peak = cluster['peak_coords']
+            if self.template.domain == 'time':
+                vert_peak, time_peak = cluster['peak_coords']
+                initial_time = self.template.times[time_peak]
+            elif self.template.domain == 'freq':
+                vert_peak, freq_peak = cluster['peak_coords']
+                initial_time = self.template.freqs[freq_peak]
+            elif self.template.domain == 'time-freq':
+                vert_peak, freq_peak, time_peak = cluster['peak_coords']
+                initial_time = self.template.times[time_peak]
             if vert_peak < self.template.vertices[0].size:
                 hemi = 'lh'
             else:
                 hemi = 'rh'
             # Convert to STC object for plotting
             stc = self._cluster_to_stc(lv_idx, cluster_idx)
-            # Set colour limits
-            cmax = np.abs(stc.data.flat[cluster['peak_flat']])
+            # Set colour limits from threshold to max
+            if self.template.domain == 'time-freq':
+                # We've averaged over frequency when converting to stc
+                peak_vert, _, peak_time = cluster['peak_coords']
+                peak_coords = (peak_vert, peak_time)
+            else:
+                peak_coords = cluster['peak_coords']
+            cmax = np.abs(stc.data[peak_coords])
             cmin = cluster_info['threshold']
             cmid = cmin
             clim = (cmin, cmid, cmax)
             # Generate interactive plot
             out = stc.plot(subjects_dir=self.template.subjects_dir,
                            hemi=hemi,
-                           time_viewer=False,
-                           initial_time=stc.times[time_peak],
+                           time_viewer=True,
+                           initial_time=initial_time,
                            clim={'kind': 'value',
                                  'pos_lims': clim})
         else:
@@ -881,11 +911,10 @@ class PLSC():
         None
         """
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
-        # Default to manually specified cluster_idx
-        f, curr_ax = plt.subplots(layout='constrained')
         if self.template.datatype == 'surf-stc':
             raise ValueError('Spatial and non-spatial cluster visualizations cannot be shown in the same figure. Call .plot_cluster_nonspatial() and .plot_cluster_spatial() separately.')
         else:
+            f, curr_ax = plt.subplots(layout='constrained')
             # Subdivide into left and right axis
             sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
             curr_ax.remove()
@@ -1015,49 +1044,104 @@ class Template():
     """
     Template containing channels, source info, times, frequencies, etc. associated with the data. This is used for clustering and plotting.
     """
-    def __init__(self, source):
+    def __init__(self, source, src_domain=None, src_freqs=None):
         # Document attributes
         self.src = None #: :class:`mne.SourceSpaces`: Source spaces of data, if applicable.
         self.mri = None #: Niimg-like: Structural MRI data, if applicable.
         self.subjects_dir = None #: path-like: Freesurfer subjects directory, if applicable.
-        # Keep the useful info without the data
-        if isinstance(source, list):
-            source = source[0]
-        # Infer datatype
-        self.datatype = utils.infer_datatype(source) #: ``str``: Specifies the type of the data.
-        # Determine sensors space vs source space
-        if self.datatype in ['epo', 'spec', 'tfr']:
-            space = 'sensor'
-        elif self.datatype in ['surf-stc', 'vol-stc']:
-            space = 'source'
-        self.space = space #: ``str``: Specifies whether the data is in sensor or source space
-        # Get shape of data, ignoring epochs dimension
-        if self.datatype in ['surf-stc', 'vol-stc']:
-            data = source.data
-        else:
-            data = source.get_data()
-        if utils.is_epochs(source, datatype=self.datatype):
-            shape = data.shape[1:]
-        else:
-            shape = data.shape
-        self.shape = shape #: ``tuple``: Specifies the original shape of the data.
-        self.size = np.prod(self.shape) #: ``int``: Size of data.
-        # Get names of data dimensions
-        dimnames = {
-            'epo':      ('chan', 'time'),
-            'spec':     ('chan', 'freq'),
-            'tfr':      ('chan', 'freq', 'time'),
-            'vol-stc':  ('vert', 'time'),
-            'surf-stc': ('vert', 'time')}
-        self.dimnames = dimnames[self.datatype] #: ``tuple``: Names of dimensions of data.
-        self.ndim = len(self.dimnames) #: ``int``: Number of dimensions in data.
-        if self.space == 'sensor':
-            self.info = source.info #: :class:`mne.Info`: MNE Info object for data.
-        elif self.space == 'source':
-            self.vertices = source.vertices #: ``list``: List of vertices copied from stc object.
+        self.datatype = None #: ``str``: Specifies the type of the data.
+        self.source_type = None #: ``str``: Differentiates between surface and volume sources
+        self.shape = None #: ``tuple``: Specifies the shape of the data array.
         self.times = None #: ``numpy.ndarray``: Times, copied from data
         self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
         self.subject = None #: ``str``: Freesurfer subject name, copied from data
+        self.domain = None #: TODO: document
+        _check_str_arg('domain', src_domain,
+                       (None, 'time', 'freq', 'time-freq'))
+        # Infer datatype
+        if isinstance(source, list):
+            inst = source[0]
+            if isinstance(inst, list):
+                inst = inst[0]
+                # List of lists implies source-space time-frequency
+                self.space = 'source' # Redundant with later code but no harm
+                self.domain = 'time-freq'
+                if src_freqs is None:
+                    raise ValueError('Frequencies must be specified for time-frequency data in source space')
+        else:
+            inst = source
+        attrs = dir(inst)
+        if 'times' not in attrs:
+            self.space = 'sensor'
+            self.datatype = 'spec'
+            self.domain = 'freq'
+        else:
+            if 'vertices' in attrs:
+                self.space = 'source'
+                if 'as_volume' in attrs:
+                    self.source_type = 'volume'
+                    self.datatype = 'vol-stc'
+                else:
+                    self.source_type = 'surface'
+                    self.datatype = 'surf-stc'
+                if self.domain is None:
+                    if src_domain is None:
+                        # No way of inferring domain of STCs programmatically
+                        print('Assuming time-domain source-space data. If data is actually freq- or time-freq-domain, specify this explicitly')
+                        self.domain = 'time'
+                    else:
+                        self.domain = src_domain
+            else:
+                self.space = 'sensor'
+                if 'freqs' in attrs:
+                    self.datatype = 'tfr'
+                    self.domain = 'time-freq'
+                else:
+                    self.datatype = 'epo'
+                    self.domain = 'time'
+        # Add important attributes
         for attr in ['times', 'freqs', 'subject']:
-            if attr in dir(source):
-                setattr(self, attr, getattr(source, attr))
+            if attr in dir(inst):
+                setattr(self, attr, getattr(inst, attr))
+        if self.space == 'sensor':
+            self.info = inst.info #: :class:`mne.Info`: MNE Info object for data.
+        elif self.space == 'source':
+            self.vertices = inst.vertices #: ``list``: List of vertices copied from stc object.
+        if src_freqs is not None:
+            self.freqs = np.array(src_freqs)
+        # Get names of data dimensions
+        self.dimnames = ()
+        # Start with spatial dimension
+        if self.space == 'sensor':
+            self.dimnames += ('chan',)
+        elif self.space == 'source':
+            if self.source_type == 'surface':
+                self.dimnames += ('vert',)
+            elif self.source_type == 'volume':
+                self.dimnames += ('vox',)
+        # Get names of non-spatial dimensions
+        if self.domain == 'time':
+            self.dimnames += ('time',)
+        elif self.domain == 'freq':
+            self.dimnames += ('freq',)
+        elif self.domain == 'time-freq':
+            self.dimnames += ('freq', 'time')
+        # Get shape of data, ignoring epochs dimension if any
+        if self.space == 'sensor':
+            data = inst.get_data()
+            if '__len__' in dir(data):
+                # Ignore epoch dimension
+                self.shape = data.shape[1:]
+            else:
+                self.shape = data.shape
+        elif self.space == 'source':
+            if self.domain == 'time-freq':
+                # Data will be freqs x times
+                self.shape = (inst.data.shape[0],
+                              len(self.freqs),
+                              len(self.times))
+            else:
+                self.shape = inst.data.shape
+        assert len(self.shape) == len(self.dimnames)
+        self.size = np.prod(self.shape) #: ``int``: Size of data.
+        self.ndim = len(self.dimnames) #: ``int``: Number of dimensions in data.

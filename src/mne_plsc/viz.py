@@ -261,6 +261,9 @@ def plot_labeled_raster(template, data, xdim, ydim, vlabel=None, vlim=None, ax=N
         ax.set_ylabel(ylabel)
     if vlabel is not None:
         f.colorbar(im, ax=ax).set_label(vlabel)
+    # x or y axis could be frequency
+    if xdim == 'freq' and ax.get_xscale() == 'log':
+        add_freq_landmarks(ax.xaxis)
     if ydim == 'freq' and ax.get_yscale() == 'log':
         add_freq_landmarks(ax.yaxis)
     return f, ax
@@ -457,9 +460,15 @@ def plot_cluster_raster(data, template, cluster, which, highlight, ax=None):
         data_desc = 'salience'
     elif which == 'z-scores':
         data_desc = 'bootstrap ratio (z score)'
-    if template.datatype == 'tfr':
+    if template.domain == 'time-freq':
+        # Average over spatial dimension
         masked = masked.mean(axis=0)
-        vlabel = 'Mean %s over channels in cluster' % data_desc
+        name_mapping = {
+            'chan': 'channels',
+            'vert': 'vertices',
+            'vox': 'voxels'}
+        spatial_dim = name_mapping[template.dimnames[0]]
+        vlabel = 'Mean %s over %s in cluster' % (data_desc, spatial_dim)
     else:
         vlabel = data_desc.capitalize()
     # Get data for raster plot
@@ -520,8 +529,13 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
             peak_x = xdata[cluster['peak_coords'][1]]
             handle = ax.axvline(peak_x, c='k', ls=':',
                                 label='Cluster peak')
-        # Labels
+        # Label non-spatial dim
         ax.set_xlabel(xlabel)
+        if check_log_scale(xdata):
+            ax.set_xscale('log')
+            if template.dimnames[1] == 'freq':
+                add_freq_landmarks(ax.xaxis)
+        # Label spatial dim
         spatial_dim = template.dimnames[0]
         if spatial_dim == 'vert':
             ylabel = 'N. vertices in cluster'
@@ -531,7 +545,7 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
         ax.set_ylabel(ylabel)
         if highlight != 'none':
             ax.legend(handles=[handle])
-    elif template.datatype == 'tfr':
+    elif template.domain == 'time-freq':
         raise NotImplementedError()
     return f, ax
 

@@ -1,5 +1,6 @@
 
 import mne
+import mne_plsc
 import numpy as np
 import pandas as pd
 
@@ -112,52 +113,32 @@ def average_epochs_by_metadata(epochs_list, column, between=None):
     design = pd.DataFrame.from_records(rows)
     return data_list, design
 
-def infer_datatype(data):
-    attrs = dir(data)
-    if 'times' not in attrs:
-        datatype = 'spec'
-    else:
-        if 'vertices' in attrs:
-            if 'as_volume' in attrs:
-                datatype = 'vol-stc'
-            else:
-                datatype = 'surf-stc'
-        elif 'freqs' in attrs:
-            datatype = 'tfr'
-        else:
-            datatype = 'epo'
-    return datatype
-
-def is_epochs(data, datatype=None):
-    '''
-    if datatype is None:
-        datatype = infer_datatype(data)
-    if datatype in ['epo', 'spec']:
-        if data._data.ndim == 3:
-            out = True
-        else:
-            out = False
-    elif datatype == 'tfr':
-        if data._data.ndim == 4:
-            out = True
-        else:
-            out = False
-    '''
-    out = '__len__' in dir(data) # Only epoch objects have a length
-    return out
-
-def get_datamat(data, datatype):
+def get_datamat(data, template):
     # MNE object (or list thereof) to matrix
-    if isinstance(data, list):
-        # Each element is a different participant-wise average
-        if datatype in ['surf-stc', 'vol-stc']:
-            get_data = lambda x: x.data
-        else:
-            get_data = lambda x: x.get_data()
-        datamat = np.stack([get_data(item).flatten() for item in data])
+    if template.space == 'source' and template.domain == 'time-freq':
+        # Special case: outer list is epochs or participants
+        all_obs = [] # observations as umbrella term
+        for curr_obs in data:
+            # Get freqs x times matrix
+            array = np.stack([stc.data for stc in curr_obs])
+            # Flatten
+            row = array.flatten()
+            # Collect
+            all_obs.append(row)
+        datamat = np.stack(all_obs)
+        if np.iscomplex(datamat).any():
+            raise ValueError('Data is complex; convert to real power values before model fitting')
     else:
-        # Single participant data
-        datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
+        if isinstance(data, list):
+            # Each element is a different participant-wise average
+            if template.space == 'source':
+                get_data = lambda x: x.data
+            else:
+                get_data = lambda x: x.get_data()
+            datamat = np.stack([get_data(item).flatten() for item in data])
+        else:
+            # Single participant data
+            datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
     return datamat
 
 def get_grouping(between, within):
