@@ -17,7 +17,8 @@ extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.napoleon',
 	'nbsphinx',
-	'sphinx.ext.intersphinx'
+	'sphinx.ext.intersphinx',
+	'myst_parser'
 ]
 
 napoleon_numpy_docstring = True

@@ -7,6 +7,7 @@ Below are a set of examples of how to use ``mne-plsc`` to analyze data that ship
 .. toctree::
    :maxdepth: 1
 
+   input-format
    notebooks/mc-erp
    notebooks/beh-erp
    notebooks/multi-subject-analysis

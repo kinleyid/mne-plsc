@@ -5,3 +5,4 @@ pydata-sphinx-theme
 ipykernel
 ipywidgets
 ipyevents
+myst-parser
