@@ -4,16 +4,16 @@
 Different inputs are accepted 
 
 | Domain | Space | Analysis | Input data |
-------------------------------------------
+|--------|-------|----------|------------|
 | Sensor | Singlesubject | Time | Single `mne.Epochs` |
-| Sensor | Singlesubject | Frequency | Single `mne.EpochsSpectrum` |
-| Sensor | Singlesubject | Timefrequency | Single `mne.EpochsTFR` |
-| Sensor | Group | Time | List of `mne.Evoked` |
-| Sensor | Group | Frequency | List of `mne.Spectrum` |
-| Sensor | Group | Timefrequency | List of `mne.AverageTFR` |
-| Source | Singlesubject | Time | Single `mne.Epochs` |
-| Source | Singlesubject | Frequency | Single `mne.EpochsSpectrum` |
-| Source | Singlesubject | Timefrequency | Single `mne.EpochsTFR` |
-| Source | Group | Time | List of `mne.Evoked` |
-| Source | Group | Frequency | List of `mne.Spectrum` |
-| Source | Group | Timefrequency | List of `mne.AverageTFR` |
+| Sensor | Singlesubject | Frequency | Single `mne.time_frequency.EpochsSpectrum` |
+| Sensor | Singlesubject | Timefrequency | Single `mne.time_frequency.EpochsTFR` |
+| Sensor | Group | Time | List of `mne.Evoked` (one per participant x cond) |
+| Sensor | Group | Frequency | List of `mne.time_frequency.Spectrum` (one per participant x cond) |
+| Sensor | Group | Timefrequency | List of `mne.time_frequency.AverageTFR` (one per participant x cond) |
+| Source | Singlesubject | Time | List of `mne.[Volume]SourceEstimate` (one per trial) |
+| Source | Singlesubject | Frequency | List of `mne.[Volume]SourceEstimate` (one per trial) |
+| Source | Singlesubject | Timefrequency | List of lists of `mne.[Volume]SourceEstimate` (one per trial in outer list, one per frequency in inner list) | 
+| Source | Group | Time | List of `mne.[Volume]SourceEstimate` (one per participant x cond) |
+| Source | Group | Frequency | List of `mne.[Volume]SourceEstimate` (one per participant x cond) |
+| Source | Group | Timefrequency | List of lists of `mne.[Volume]SourceEstimate` (one per participant x cond in outer list, one per frequency in inner list) |
