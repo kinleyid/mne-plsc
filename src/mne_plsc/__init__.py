@@ -409,7 +409,7 @@ class PLSC():
         _check_str_arg('which', which, ('auto', 'saliences', 'z-scores'))
         if 'adjacency' not in dir(self.template):
             raise ValueError('Adjacency must be added with .add_adjacency() before clustering can be done')
-        # Auto-determine data to cluster
+        # Auto-determine which data to cluster
         if which == 'auto':
             if self.model._boot_done:
                 which = 'z-scores'
@@ -422,7 +422,7 @@ class PLSC():
                 raise ValueError('Bootstrap resampling must be done to use z scores for clustering.')
             data = self.model.data_sals_z_
             if threshold is None:
-                # Conventional 2 BSR
+                # Conventional threshold, z score of 2
                 threshold = 2
         elif which == 'saliences':
             data = self.model.data_sals_
@@ -452,7 +452,6 @@ class PLSC():
         
         clusters = []
         for lv_idx in range(self.model.rank_):
-            # TODO: make an option for separate negative + positive clusters
             # Separate clustering for positive and negative
             print('Computing clusters for lv_idx %s...' % lv_idx)
             curr_thresh = threshold[lv_idx]
@@ -821,8 +820,14 @@ class PLSC():
                 plot_type = 'raster'
             elif self.template.datatype in ['surf-stc', 'vol-stc']:
                 plot_type = 'distribution'
+        # Check for mismatch between data type and plot type
+        if self.template.datatype in ['epo', 'spec']:
+            valid_plot_types = ['butterfly', 'raster', 'distribution']
+        else:
+            valid_plot_types = ['raster', 'distribution']
+        if plot_type not in valid_plot_types:
+            raise ValueError('%s is not a valid plot type for this data. Valid options are %s.' % (plot_type, valid_plot_types))
         cluster, info, data = self._get_cluster(lv_idx, cluster_idx)
-        # TODO: fail gracefully in case of mismatch between datatype and plot_type
         if plot_type == 'butterfly':
             out = viz.plot_cluster_butterfly(data=data,
                                              template=self.template,
@@ -1129,10 +1134,11 @@ class Template():
         self.datatype = None #: ``str``: Specifies the type of the data.
         self.source_type = None #: ``str``: Differentiates between surface and volume sources
         self.shape = None #: ``tuple``: Specifies the shape of the data array.
+        self.size = None #: ``int``: Size of data.
         self.times = None #: ``numpy.ndarray``: Times, copied from data
         self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
         self.subject = None #: ``str``: Freesurfer subject name, copied from data
-        self.domain = None #: TODO: document
+        self.domain = None #: ``str``: Specifies whether data is time-domain, frequency-domain, or time-frequency.
         _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
         # Infer datatype
@@ -1220,5 +1226,5 @@ class Template():
             else:
                 self.shape = inst.data.shape
         assert len(self.shape) == len(self.dimnames)
-        self.size = np.prod(self.shape) #: ``int``: Size of data.
+        self.size = np.prod(self.shape)
         self.ndim = len(self.dimnames) #: ``int``: Number of dimensions in data.
