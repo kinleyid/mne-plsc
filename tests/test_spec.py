@@ -58,6 +58,7 @@ def run_result_methods(result):
     result.cluster(which='z-scores')
     result.get_cluster_data(lv_idx=0, cluster_idx=0)
     run_result_plots(result)
+    result.brain_sals_to_mne(0)
 
 def test_mc_both(sample_data):
     data, _, between, within, participant = sample_data

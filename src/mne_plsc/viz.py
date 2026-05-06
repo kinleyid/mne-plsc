@@ -559,6 +559,10 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
                             ax=ax)
     return f, ax
 
+def plot_axial_slices(img, ax):
+    set_trace()
+    pass
+
 def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=None):
     # Combine labels and scores into one dataframe
     df = labels.assign(scores=scores)

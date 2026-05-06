@@ -318,6 +318,48 @@ class PLSC():
                              return_boot_stat_dist=return_boot_stat_dist,
                              n_jobs=n_jobs,
                              print_prog=print_prog)
+    def brain_sals_to_mne(self, lv_idx, which='saliences'):
+        _check_str_arg('which', which,
+                       ['saliences', 'z-scores'])
+        if which == 'saliences':
+            data = self.model.data_sals_[:, lv_idx]
+        elif which == 'z-scores':
+            data = self.model.data_sals_z_[:, lv_idx]
+        data = data.reshape(self.template.shape)
+        if self.template.space == 'sensor':
+            info = self.template.info
+            if self.template.domain == 'time':
+                out_obj = mne.EvokedArray(data=data,
+                                          info=info,
+                                          tmin=self.template.times[0])
+            elif self.template.domain == 'freq':
+                out_obj = mne.time_frequency.SpectrumArray(data=data,
+                                                           info=info,
+                                                           freqs=self.template.freqs)
+            elif self.template.domain == 'time-freq':
+                out_obj = mne.time_frequency.AverageTFRArray(data=data,
+                                                             info=info,
+                                                             times=self.template.times,
+                                                             freqs=self.template.freqs)
+        elif self.template.space == 'source':
+            if self.template.source_type == 'surface':
+                class_constructor = mne.SourceEstimate
+            elif self.template.source_type == 'volume':
+                class_constructor = mne.VolSourceEstimate
+            kwargs = dict(vertices=self.template.vertices,
+                          tmin=self.template.times[0],
+                          tstep=self.template.tstep)
+            if self.template.domain in ('time', 'freq'):
+                # Single STC
+                out_obj = class_constructor(data=data, **kwargs)
+            elif self.template.domain == 'time-freq':
+                # List of frequency-specific STCs
+                out_obj = list()
+                for freq_idx in range(len(self.template.freqs)):
+                    curr_data = data[:, freq_idx, :].squeeze()
+                    freq_stc = class_constructor(data=curr_data, **kwargs)
+                    out_obj.append(freq_stc)
+        return out_obj
     def add_source_info(self, src=None, mri=None, subjects_dir=None, freqs=None):
         """
         Add information about source space for clustering and plotting.
@@ -1139,6 +1181,7 @@ class Template():
         self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
         self.subject = None #: ``str``: Freesurfer subject name, copied from data
         self.domain = None #: ``str``: Specifies whether data is time-domain, frequency-domain, or time-frequency.
+        self.tstep = None # TODO: document
         _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
         # Infer datatype
@@ -1183,7 +1226,7 @@ class Template():
                     self.datatype = 'epo'
                     self.domain = 'time'
         # Add important attributes
-        for attr in ['times', 'freqs', 'subject']:
+        for attr in ['times', 'freqs', 'subject', 'tstep']:
             if attr in dir(inst):
                 setattr(self, attr, getattr(inst, attr))
         if self.space == 'sensor':
