@@ -1,7 +1,7 @@
 
 # Input data formats
 
-Different inputs are used for different types of analysis, depending on the . Below is a comprehensive list. Note that "participant x cond" means a conjunction of participant and within-participants condition. For example, this could mean a given participant's average for the trials in condition A.
+Different inputs are used for different types of analysis, depending on the space (source vs sensor), whether a single-subject or group analysis is being run, and the domain of the data. Below is a comprehensive list. Note that "participant x cond" means a conjunction of participant and within-participants condition. For example, a single observation could be a given participant's average for the trials in condition A, if every participant completes both conditions A and B.
 
 | Space | Analysis | Domain | Input data |
 |-------|--=-------|--------|------------|
