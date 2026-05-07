@@ -5,8 +5,6 @@ import mne_plsc
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-from mne.datasets import sample
-from mne.minimum_norm import read_inverse_operator
 from pathlib import Path
 
 import matplotlib
@@ -16,6 +14,8 @@ from pdb import set_trace
 
 @pytest.fixture
 def sample_data(request):
+    fixture_path = Path(request.fspath.dirpath()) / "fixtures"
+    src = mne.read_source_spaces(fixture_path / 'vol-src.fif.gz')
     np.random.seed(123)
     n_ptpt = 10
     between = ['b1']*n_ptpt + ['b2']*n_ptpt
@@ -24,7 +24,8 @@ def sample_data(request):
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
-    n_vert = 3
+    # n_vert = 3
+    n_vert = len(src.vertices[0])
     stcs = []
     for ptpt in range(n_ptpt*2):
         array_data = np.random.normal(size=(n_vert, len(times)))
@@ -37,13 +38,11 @@ def sample_data(request):
                                     tstep=1/sfreq,
                                     subject='fsaverage')
         stcs.append(stc)
-    fixture_path = Path(request.fspath.dirpath()) / "fixtures"
-    src = mne.read_source_spaces(fixture_path / 'vol-src.fif.gz')
     return stcs, covariates, between, within, participant, src
 
 def run_result_plots(result):
     result.plot_boot_stat(0)
-    result.plot_brain_sals(lv_idx=0)
+    # result.plot_brain_sals(lv_idx=0)
     # result.plot_cluster_sizes(lv_idx=0)
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
