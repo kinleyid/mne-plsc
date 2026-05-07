@@ -388,6 +388,8 @@ class PLSC():
         if subjects_dir is not None:
             self.template.subjects_dir = subjects_dir
         if freqs is not None:
+            if self.template.domain == 'time':
+                raise ValueError('Attempting to add frequencies, but data is time-domain')
             self.template.freqs = np.array(freqs)
             self.template.domain = 'freq'
     def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):

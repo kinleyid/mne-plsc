@@ -46,6 +46,8 @@ def run_result_plots(result):
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
     # Can't test cluster visualization
+    with pytest.raises(Exception):
+        result.plot_cluster_spatial(0, 0)
     result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     plt.close('all')
@@ -53,7 +55,8 @@ def run_result_plots(result):
 def run_result_methods(result, src):
     result.add_source_info(src=src)
     result.add_adjacency()
-    # result.cluster()
+    result.cluster()
+    result._cluster_to_stc(0, 0)
     result.model.permute(10)
     result.model.bootstrap(10)
     # result.cluster(which='z-scores')
