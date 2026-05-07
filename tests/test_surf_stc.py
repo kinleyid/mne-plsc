@@ -5,8 +5,6 @@ import mne_plsc
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-from mne.datasets import sample
-from mne.minimum_norm import read_inverse_operator
 from pathlib import Path
 
 import matplotlib

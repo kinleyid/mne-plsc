@@ -25,7 +25,6 @@ def sample_data(request):
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
-    # n_vert = 3
     n_vert = len(vertices)
     stcs = []
     for ptpt in range(n_ptpt*2):
