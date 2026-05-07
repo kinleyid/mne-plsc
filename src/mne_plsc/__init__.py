@@ -745,42 +745,71 @@ class PLSC():
             label = 'Salience'
             avg_label = 'Mean salience'
         data = data.reshape(self.template.shape)
-        if self.template.datatype in ['epo', 'spec']:
-            # Line plot with spatial colours
-            if self.template.datatype == 'epo':
-                x = self.template.times
-                xlabel = 'Time (s)'
-            elif self.template.datatype == 'spec':
-                x = self.template.freqs
-                xlabel = 'Frequecy (Hz)'
-            if self._clustering_done:
-                ythresh = self.clusters[lv_idx]['info']['threshold']
-            else:
-                ythresh = None
-            viz.channel_lineplot(x=x,
-                                 ch_y=data,
-                                 info=self.template.info,
-                                 ax=ax,
-                                 xlabel=xlabel,
-                                 ylabel=label,
-                                 ythresh=ythresh)
-        elif self.template.domain == 'time-freq':
-            # Show average
-            tf_data = data.mean(axis=0)
-            viz.plot_labeled_raster(template=self.template,
-                                    data=tf_data,
-                                    xdim='time',
-                                    ydim='freq',
-                                    vlabel=avg_label,
-                                    ax=ax)
-        elif self.template.datatype in ['surf-stc', 'vol-stc']:
-            ydim, xdim = self.template.dimnames
-            viz.plot_labeled_raster(template=self.template,
-                                    data=data,
-                                    xdim=xdim,
-                                    ydim=ydim,
-                                    vlabel=label,
-                                    ax=ax)
+        if self.template.space == 'sensor':
+            if self.template.domain in ['time', 'freq']:
+                # Line plot with spatial colours
+                if self.template.domain == 'time':
+                    xdata = self.template.times
+                    xlabel = 'Time (s)'
+                elif self.template.domain == 'freq':
+                    xdata = self.template.freqs
+                    xlabel = 'Frequecy (Hz)'
+                if self._clustering_done:
+                    ythresh = self.clusters[lv_idx]['info']['threshold']
+                else:
+                    ythresh = None
+                viz.channel_lineplot(x=xdata,
+                                     ch_y=data,
+                                     info=self.template.info,
+                                     ax=ax,
+                                     xlabel=xlabel,
+                                     ylabel=label,
+                                     ythresh=ythresh)
+            elif self.template.domain == 'time-freq':
+                # Show average
+                tf_data = data.mean(axis=0)
+                viz.plot_labeled_raster(template=self.template,
+                                        data=tf_data,
+                                        xdim='time',
+                                        ydim='freq',
+                                        vlabel=avg_label,
+                                        ax=ax)
+        elif self.template.space == 'source':
+            if self.template.source_type == 'surface':
+                # Raster is the best we can do for now
+                ydim, xdim = self.template.dimnames
+                viz.plot_labeled_raster(template=self.template,
+                                        data=data,
+                                        xdim=xdim,
+                                        ydim=ydim,
+                                        vlabel=label,
+                                        ax=ax)
+            elif self.template.source_type == 'volume':
+                if self.template.src is None:
+                    print('Plotting raster image. To view a 4D image, add source info via the add_source_info() method')
+                    ydim, xdim = self.template.dimnames
+                    viz.plot_labeled_raster(template=self.template,
+                                            data=data,
+                                            xdim=xdim,
+                                            ydim=ydim,
+                                            vlabel=label,
+                                            ax=ax)
+                else:
+                    stc = self.brain_sals_to_mne(lv_idx=lv_idx,
+                                                 which=which)
+                    img = stc.as_volume(src=self.template.src)
+                    if self.template.domain == 'time':
+                        xdata = self.template.times
+                        xlabel = 'Time (s)'
+                    elif self.template.domain == 'freq':
+                        xdata = self.template.freqs
+                        xlabel = 'Frequecy (Hz)'
+                    f, ax = viz.plot_niimg_4d(img=img, 
+                                              xdata=xdata,
+                                              xlabel=xlabel,
+                                              vlabel=label,
+                                              ax=ax)
+            
     def plot_lv(self, lv_idx, which='saliences'):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.

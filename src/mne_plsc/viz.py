@@ -331,6 +331,55 @@ def scree(singular_vals, which, rank, null_dist=None, null_percentile=95, ax=Non
     ax.set_xticklabels(np.arange(len(singular_vals)))
     return f, ax
 
+def plot_niimg_4d(img, xdata, xlabel, vlabel, n_slices=10, ax=None):
+    f, ax = _get_ax(ax)
+    # Mask zeros
+    data = img.get_fdata()
+    data[data == 0] = np.nan
+    # Get z indices
+    n_z = data.shape[2]
+    if n_slices > n_z:
+        n_slices = n_z
+    margin = n_z // 8
+    indices = np.linspace(margin, n_z - margin - 1, n_slices, dtype=int)
+    # Collect 3d spatial montages over the nonspatial dimension
+    montages = []
+    for idx in range(len(xdata)):
+        z_slices = [np.rot90(data[:, :, i, idx]) for i in indices]
+        montage = np.concatenate(z_slices, axis=0)
+        montages.append(montage)
+    # Plot
+    img_data = np.concatenate(montages, axis=1)
+    vlim = np.nanmax(np.abs(img_data))
+    im = ax.imshow(img_data,
+                   cmap='RdBu_r',
+                   vmin=-vlim,
+                   vmax=vlim)
+    # Add contour for brain
+    is_brain = np.isnan(img_data)
+    ax.contour(is_brain, levels=[0.5], colors='black', linewidths=0.2)
+    # Get nonspatial xticks
+    step = data.shape[0]
+    start = step/2
+    stop = img_data.shape[1]
+    xticks = np.arange(start, stop, step)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xdata.round(2))
+    ax.set_xlabel(xlabel)
+    ax.locator_params(axis='x', nbins=5)
+    # Label y axis (spatial)
+    step = data.shape[1]
+    start = step/2
+    stop = img_data.shape[0]
+    yticks = np.arange(start, stop, step)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(indices)
+    ax.set_ylabel('Axial slice')
+    # Make and label colorbar
+    cbar = f.colorbar(im, shrink=0.6)
+    cbar.set_label(vlabel)
+    return f, ax
+
 ### For plotting clusters
 
 def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', ax=None):
