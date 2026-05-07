@@ -16,6 +16,9 @@ from pdb import set_trace
 
 @pytest.fixture
 def sample_data(request):
+    fixture_path = Path(request.fspath.dirpath()) / "fixtures"
+    src = mne.read_source_spaces(fixture_path / 'surf-src.fif.gz')
+    vertices = [ss['vertno'] for ss in src]
     np.random.seed(123)
     n_ptpt = 10
     between = ['b1']*n_ptpt + ['b2']*n_ptpt
@@ -24,21 +27,18 @@ def sample_data(request):
     covariates = np.random.normal(size=(2*n_ptpt, 2))
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
-    n_vert = 3
+    n_vert = len(vertices[0]) + len(vertices[1])
     stcs = []
     for ptpt in range(n_ptpt*2):
         array_data = np.random.normal(size=(n_vert, len(times)))
-        array_data = np.concat([array_data]*2)
         array_data[between == 'b2'] += 1
         array_data[between == 'w2'] += 1
-        stc = mne.VolSourceEstimate(data=array_data,
-                                    vertices=[np.arange(n_vert)]*2,
-                                    tmin=times[0],
-                                    tstep=1/sfreq,
-                                    subject='fsaverage')
+        stc = mne.SourceEstimate(data=array_data,
+                                 vertices=vertices,
+                                 tmin=times[0],
+                                 tstep=1/sfreq,
+                                 subject='fsaverage')
         stcs.append(stc)
-    fixture_path = Path(request.fspath.dirpath()) / "fixtures"
-    src = mne.read_source_spaces(fixture_path / 'surf-src.fif.gz')
     return stcs, covariates, between, within, participant, src
 
 def run_result_plots(result):

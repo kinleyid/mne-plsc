@@ -16,6 +16,7 @@ from pdb import set_trace
 def sample_data(request):
     fixture_path = Path(request.fspath.dirpath()) / "fixtures"
     src = mne.read_source_spaces(fixture_path / 'vol-src.fif.gz')
+    vertices = src[0]['vertno']
     np.random.seed(123)
     n_ptpt = 10
     between = ['b1']*n_ptpt + ['b2']*n_ptpt
@@ -25,15 +26,14 @@ def sample_data(request):
     sfreq = 20
     times = np.arange(0, 1, 1/sfreq)
     # n_vert = 3
-    n_vert = len(src.vertices[0])
+    n_vert = len(vertices)
     stcs = []
     for ptpt in range(n_ptpt*2):
         array_data = np.random.normal(size=(n_vert, len(times)))
-        array_data = np.concat([array_data]*2)
         array_data[between == 'b2'] += 1
         array_data[between == 'w2'] += 1
         stc = mne.VolSourceEstimate(data=array_data,
-                                    vertices=[np.arange(n_vert)]*2,
+                                    vertices=[vertices],
                                     tmin=times[0],
                                     tstep=1/sfreq,
                                     subject='fsaverage')
@@ -42,7 +42,7 @@ def sample_data(request):
 
 def run_result_plots(result):
     result.plot_boot_stat(0)
-    # result.plot_brain_sals(lv_idx=0)
+    result.plot_brain_sals(lv_idx=0)
     # result.plot_cluster_sizes(lv_idx=0)
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
@@ -54,7 +54,7 @@ def run_result_plots(result):
 def run_result_methods(result, src):
     result.add_source_info(src=src)
     result.add_adjacency()
-    # result.cluster()
+    result.cluster()
     result.model.permute(10)
     result.model.bootstrap(10)
     # result.cluster(which='z-scores')

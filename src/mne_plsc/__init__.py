@@ -380,6 +380,8 @@ class PLSC():
         if not self.template.space == 'source':
             raise ValueError('Data is not in source space.')
         if src is not None:
+            if src.kind != self.template.source_type:
+                raise ValueError('src.kind is %s but data is in %s source space' % (src.kind, self.template.source_type))
             self.template.src = src
         if mri is not None:
             self.template.mri = mri
