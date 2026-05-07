@@ -392,14 +392,14 @@ class PLSC():
                 raise ValueError('Attempting to add frequencies, but data is time-domain')
             self.template.freqs = np.array(freqs)
             self.template.domain = 'freq'
-    def add_adjacency(self, all_channels_adjacent='auto', montage_name=None):
+    def add_adjacency(self, all_space_adjacent='auto', montage_name=None, spatial_adjacency=None):
         """
         Add adjacency matrix for clustering.
 
         Parameters
         ----------
-        all_channels_adjacent : bool, optional
-            Specifies whether all channels should be considered adjacent to each other for the purposes of clustering. This is useful when doing ERP analyses, where strong loadings at non-adjacent channels would be considered part of the same component. The default is ``'auto'``, which is ``True`` for ERP analysis (inferred based on :attr:`template.datatype`) and ``False`` for all other analyses.
+        all_space_adjacent : bool, optional
+            Specifies whether all spatial locations (e.g. channels, vertices) should be treated as adjacent to each other for the purposes of clustering. This is useful when doing ERP analyses, where strong loadings at non-adjacent channels would be considered part of the same component. It can also be used to examine distributed patterns of (de)synchronization for frequency-domain analyses. The default is ``'auto'``, which is ``True`` for ERP analysis (inferred based on :attr:`template.datatype`) and ``False`` for all other analyses.
         montage_name : str, optional
             Name of montage passed to ``mne.channels.read_ch_adjacency``. The default is ``None``, which uses ``mne.channels.find_ch_adjacency`` to get channel adjacency.
 
@@ -408,30 +408,33 @@ class PLSC():
         None.
             None. Adds an ``adjacency`` attribute to :attr:`template` which indicates which channels, times, and frequencies (as applicable) are adjacent for clustering.
         """
+        if all_space_adjacent == 'auto':
+            if self.template.datatype == 'epo':
+                all_space_adjacent = True
+                print('Defaulting to all channels adjacent for ERP/ERF analysis')
+            else:
+                all_space_adjacent = False
         if self.template.space == 'sensor':
-            if all_channels_adjacent == 'auto':
-                if self.template.datatype == 'epo':
-                    all_channels_adjacent = True
-                    print('Defaulting to all channels adjacent for ERP/ERF analysis')
-                else:
-                    all_channels_adjacent = False
-            if all_channels_adjacent:
-                ch_adj = np.ones((self.template.info['nchan'],)*2)
+            if all_space_adjacent:
+                spatial_adj = np.ones((self.template.info['nchan'],)*2)
             else:
                 if montage_name is None:
                     ch_types = set(self.template.info.get_channel_types())
                     if len(ch_types) > 1:
                         raise ValueError('Multiple channel types present in data: %s. Adjacency could not be computed' % ch_types)
                     ch_type = ch_types.pop() # One-element set
-                    ch_adj, _ = mne.channels.find_ch_adjacency(self.template.info, ch_type)
+                    spatial_adj, _ = mne.channels.find_ch_adjacency(self.template.info, ch_type)
                 else:
-                    ch_adj, _ = mne.channels.read_ch_adjacency(montage_name)
-            spatial_adj = ch_adj
+                    spatial_adj, _ = mne.channels.read_ch_adjacency(montage_name)
         elif self.template.space == 'source':
             if self.template.src is None:
                 raise ValueError('Source space must be specified to compute spatial adjacency. See add_source_info()')
             # TODO: other options for surface source spaces
-            spatial_adj = mne.spatial_src_adjacency(self.template.src)
+            if all_space_adjacent:
+                n_vert = sum(len(ss['vertno']) for ss in self.template.src)
+                spatial_adj = np.ones((n_vert,)*2)
+            else:
+                spatial_adj = mne.spatial_src_adjacency(self.template.src)
         dim_adjs = (spatial_adj,) + self.template.shape[1:]
         self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
     def cluster(self, which='auto', threshold=None, signed='auto'):
