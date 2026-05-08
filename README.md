@@ -39,7 +39,7 @@ print(model.summary())
 
 ### 3. Cluster analysis
 
-Perform bootstrap resampling to estimate brain salience z-scores, then cluster strong saliences (e.g., :math:`|z| > 2`).
+Perform bootstrap resampling to estimate brain salience z-scores, then cluster strong saliences (e.g., $|z| > 2$).
 
 ```python
 mod.bootstrap(1000)
