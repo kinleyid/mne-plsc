@@ -533,7 +533,12 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
         vlabel = 'Mean %s over %s in cluster' % (data_desc, spatial_dim)
     else:
         vlabel = data_desc.capitalize()
-    plot_cluster_raster(masked, template, cluster, highlight, vlabel, ax)
+    plot_cluster_raster(data=masked,
+                        template=template,
+                        cluster=cluster,
+                        highlight=highlight,
+                        vlabel=vlabel,
+                        ax=ax)
 
 def plot_cluster_raster(data, template, cluster, highlight='peak', cmap='RdBu_r', vlim=None, vlabel=None, ax=None):
     f, ax = _get_ax(ax)
