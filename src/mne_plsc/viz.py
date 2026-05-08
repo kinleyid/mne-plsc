@@ -549,14 +549,14 @@ def plot_cluster_raster(data, template, cluster, highlight='peak', cmap='RdBu_r'
         absmax = np.abs(data).max()
         vlim = (-absmax, absmax)
     # Plot cluster
-    plot_labeled_raster(template=template,
-                        data=data,
-                        xdim=xdim,
-                        ydim=ydim,
-                        cmap=cmap,
-                        vlabel=vlabel,
-                        vlim=vlim,
-                        ax=ax)
+    f, ax = plot_labeled_raster(template=template,
+                                data=data,
+                                xdim=xdim,
+                                ydim=ydim,
+                                cmap=cmap,
+                                vlabel=vlabel,
+                                vlim=vlim,
+                                ax=ax)
     # Highlight peak in front of cluster
     if highlight == 'peak':
         ypeak, xpeak = cluster['peak_coords'][-2:]
@@ -567,6 +567,7 @@ def plot_cluster_raster(data, template, cluster, highlight='peak', cmap='RdBu_r'
     if highlight != 'none':
         ax.legend(handles=[handle],
                   loc='upper right')
+    return f, ax
 
 def get_nonspatial_dim(template):
     nonspatial_dim = template.dimnames[1]

@@ -825,12 +825,12 @@ class PLSC():
         if self.template.domain == 'time-freq':
             # Show average over spatial domain for both sensor and source data
             tf_data = data.mean(axis=0)
-            viz.plot_labeled_raster(template=self.template,
-                                    data=tf_data,
-                                    xdim='time',
-                                    ydim='freq',
-                                    vlabel=avg_label,
-                                    ax=ax)
+            f, ax = viz.plot_labeled_raster(template=self.template,
+                                            data=tf_data,
+                                            xdim='time',
+                                            ydim='freq',
+                                            vlabel=avg_label,
+                                            ax=ax)
         else:
             if self.template.space == 'sensor':
                 # Line plot with spatial colours
@@ -844,33 +844,33 @@ class PLSC():
                     ythresh = self.clusters[lv_idx]['info']['threshold']
                 else:
                     ythresh = None
-                viz.channel_lineplot(x=xdata,
-                                     ch_y=data,
-                                     info=self.template.info,
-                                     ax=ax,
-                                     xlabel=xlabel,
-                                     ylabel=label,
-                                     ythresh=ythresh)
+                f, ax = viz.channel_lineplot(x=xdata,
+                                             ch_y=data,
+                                             info=self.template.info,
+                                             ax=ax,
+                                             xlabel=xlabel,
+                                             ylabel=label,
+                                             ythresh=ythresh)
             elif self.template.space == 'source':
                 if self.template.source_type == 'surface':
                     # Raster is the best we can do for now
                     ydim, xdim = self.template.dimnames
-                    viz.plot_labeled_raster(template=self.template,
-                                            data=data,
-                                            xdim=xdim,
-                                            ydim=ydim,
-                                            vlabel=label,
-                                            ax=ax)
+                    f, ax = viz.plot_labeled_raster(template=self.template,
+                                                    data=data,
+                                                    xdim=xdim,
+                                                    ydim=ydim,
+                                                    vlabel=label,
+                                                    ax=ax)
                 elif self.template.source_type == 'volume':
                     if self.template.src is None:
                         print('Plotting raster image. To view a 4D image, add source info via the add_source_info() method')
                         ydim, xdim = self.template.dimnames
-                        viz.plot_labeled_raster(template=self.template,
-                                                data=data,
-                                                xdim=xdim,
-                                                ydim=ydim,
-                                                vlabel=label,
-                                                ax=ax)
+                        f, ax = viz.plot_labeled_raster(template=self.template,
+                                                        data=data,
+                                                        xdim=xdim,
+                                                        ydim=ydim,
+                                                        vlabel=label,
+                                                        ax=ax)
                     else:
                         stc = self.brain_sals_to_mne(lv_idx=lv_idx,
                                                      which=which)
