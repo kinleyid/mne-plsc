@@ -250,8 +250,15 @@ def get_raster_labels(xdim, ydim):
 
 def plot_labeled_raster(template, data, xdim, ydim, cmap='RdBu_r', vlabel=None, vlim=None, ax=None):
     f, ax = _get_ax(ax)
+    # Plot raster data
     xdata, ydata = get_raster_axis_data(template, xdim, ydim)
-    im = plot_raster(template, xdata, ydata, data, cmap, vlim, ax)
+    im = plot_raster(template=template,
+                     xdata=xdata,
+                     ydata=ydata,
+                     data=data,
+                     cmap=cmap,
+                     vlim=vlim,
+                     ax=ax)
     # Axis labels
     xlabel, ylabel = get_raster_labels(xdim, ydim)
     ax.set_xlabel(xlabel)
@@ -397,6 +404,7 @@ def plot_cluster_sizes(cluster_sizes, size_measure='pct-strong', ax=None):
     return f, ax
 
 def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backend=None, ax=None):
+    # TODO: break up into smaller functions
     f, ax = _get_ax(ax)
     # Get colorbar labels
     if cluster_info['which'] == 'saliences':
@@ -446,6 +454,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
             tmin=0, tstep=1,
             subject=template.subject
         )
+        # TODO: this should happen at a higher level
         vol = stc.as_volume(src=template.src)
         # Remove time dimension
         vol = image.index_img(vol, 0)
@@ -526,7 +535,8 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
         vlabel = data_desc.capitalize()
     plot_cluster_raster(masked, template, cluster, highlight, vlabel, ax)
 
-def plot_cluster_raster(data, template, cluster, highlight, cmap, vlabel, ax):
+def plot_cluster_raster(data, template, cluster, highlight='peak', cmap='RdBu_r', vlim=None, vlabel=None, ax=None):
+    f, ax = _get_ax(ax)
     # Get dimensions being plotted
     ydim, xdim = template.dimnames[-2:]
     # Get axis data for raster plot
@@ -534,6 +544,10 @@ def plot_cluster_raster(data, template, cluster, highlight, cmap, vlabel, ax):
     # Highlight extent behind cluster
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax, ydata)
+    # Get lims
+    if vlim is None:
+        absmax = np.abs(data).max()
+        vlim = (-absmax, absmax)
     # Plot cluster
     plot_labeled_raster(template=template,
                         data=data,
@@ -541,6 +555,7 @@ def plot_cluster_raster(data, template, cluster, highlight, cmap, vlabel, ax):
                         ydim=ydim,
                         cmap=cmap,
                         vlabel=vlabel,
+                        vlim=vlim,
                         ax=ax)
     # Highlight peak in front of cluster
     if highlight == 'peak':

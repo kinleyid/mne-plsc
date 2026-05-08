@@ -531,7 +531,9 @@ class PLSC():
             })
         self.clusters = clusters
         self._clustering_done = True
-    def _get_cluster(self, lv_idx, cluster_idx, return_data=True):
+    def _get_cluster(self, lv_idx, cluster_idx, return_data=True, which='auto'):
+        _check_str_arg('which', which,
+                       ('auto', 'data', 'saliences', 'z-scores'))
         lv_clusters = self.clusters[lv_idx]
         info = lv_clusters['info']
         # Create copy of cluster and add mask
@@ -542,30 +544,95 @@ class PLSC():
         cluster['mask'] = mask
         out = cluster, info
         if return_data:
-            # Get data used for clustering, reshaped
-            if info['which'] == 'saliences':
+            if which == 'auto':
+                # Default to data used for clustering
+                which = info['which']
+            if which == 'data':
+                data = self.model.data_[:, lv_idx]
+            elif which == 'saliences':
                 data = self.model.data_sals_[:, lv_idx]
-            elif info['which'] == 'z-scores':
+            elif which == 'z-scores':
                 data = self.model.data_sals_z_[:, lv_idx]
             reshaped = data.copy().reshape(self.template.shape)
             out += (reshaped,)
         return out
-    def _cluster_to_stc(self, lv_idx, cluster_idx):
-        cluster, _, data = self._get_cluster(lv_idx, cluster_idx)
-        data[~cluster['mask']] = 0
-        times = self.template.times * 1000 # s to ms
-        tstep = np.diff(times)[0]
+    def cluster_to_stc(self, lv_idx, cluster_idx, which='auto', mask_val=0):
+        """
+        SUMMARY.
+
+        Parameters
+        ----------
+        lv_idx : TYPE
+            DESCRIPTION.
+        cluster_idx : TYPE
+            DESCRIPTION.
+        mask_val : TYPE, optional
+            DESCRIPTION. The default is 0.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        Raises
+        ------
+        ValueError
+            DESCRIPTION.
+        """
+        # TODO: document
+        if self.template.space != 'source':
+            raise ValueError('Data must be in source space')
+        cluster, _, data = self._get_cluster(lv_idx, cluster_idx, return_data=True, which=which)
+        data[~cluster['mask']] = mask_val
+        if self.template.domain == 'freq':
+            # Placeholder values, like MNE does
+            tmin = 0
+            tstep = 1
+        else:
+            times = self.template.times * 1000 # s to ms
+            tmin = times[0]
+            tstep = np.diff(times)[0]
         if self.template.domain == 'time-freq':
             # Average over frequencies in cluster
             masked = np.ma.masked_array(data=data,
                                         mask=~cluster['mask'])
             data = np.array(masked.mean(axis=1))
-        stc = mne.SourceEstimate(data=data,
-                                 vertices=self.template.vertices,
-                                 tmin=times[0],
-                                 tstep=tstep,
-                                 subject=self.template.subject) # TODO: does this make sense in general?
+        if self.template.source_type == 'surface':
+            constructor = mne.SourceEstimate
+        elif self.template.source_type == 'volume':
+            constructor = mne.VolSourceEstimate
+        stc = constructor(data=data,
+                          vertices=self.template.vertices,
+                          tmin=tmin,
+                          tstep=tstep,
+                          subject=self.template.subject) # TODO: does this make sense in general? Probably not. Subject should be fsaverage for multi-subject analysis but the participant's own ID for single-subject
         return stc
+    def cluster_to_niimg(self, lv_idx, cluster_idx, mask_val=0):
+        """
+        SUMMARY.
+
+        Parameters
+        ----------
+        lv_idx : TYPE
+            DESCRIPTION.
+        cluster_idx : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+        """
+        # TODO: document
+        if self.template.space == 'source':
+            if self.template.source_type == 'volume':
+                stc = self.cluster_to_stc(lv_idx, cluster_idx, mask_val)
+                img = stc.as_volume(src=self.template.src)
+                return img
+            else:
+                raise ValueError('Model must be in volume source space')
+        else:
+            raise ValueError('Model is not in source space')
     def get_cluster_sizes(self, lv_idx, size_measure='pct-strong'):
         """
         Get sizes of clusters.
@@ -601,19 +668,19 @@ class PLSC():
         return sizes
     def get_cluster_data(self, lv_idx=None, cluster_idx=None):
         """
-        SUMMARY.
+        Extract the data for each observation in a given cluster or set of clusters as a dataframe. Note that this extracts the actual brain data rather than the brain saliences.
 
         Parameters
         ----------
-        lv_idx : TYPE, optional
-            DESCRIPTION. The default is None.
+        lv_idx : indexer, optional
+            Index of the latent variable(s) for which to extract data. The default is None.
         cluster_idx : TYPE, optional
             DESCRIPTION. The default is None.
-
+        
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        pd.DataFrame
+            A data frame containing .
         """
         
         if not self._clustering_done:
@@ -646,6 +713,7 @@ class PLSC():
                 # Get data at cluster peak
                 df['cluster_peak'] = self.model.data_[:, curr_cluster['peak_flat']]
                 dfs.append(df)
+        # TODO: remove columns based on grouping (e.g., no redundant "between" column if it's never applicable)
         return pd.concat(dfs)
         
     def plot_scree(self, which='pct-variance', null_percentile=95, ax=None):
@@ -818,6 +886,7 @@ class PLSC():
                                                   xlabel=xlabel,
                                                   vlabel=label,
                                                   ax=ax)
+        return f, ax
             
     def plot_lv(self, lv_idx, which='saliences'):
         """
@@ -907,7 +976,7 @@ class PLSC():
             valid_plot_types = ['raster', 'distribution']
         if plot_type not in valid_plot_types:
             raise ValueError('%s is not a valid plot type for this data. Valid options are %s.' % (plot_type, valid_plot_types))
-        cluster, info, data = self._get_cluster(lv_idx, cluster_idx)
+        cluster, info, data = self._get_cluster(lv_idx, cluster_idx, return_data=True, which='auto')
         if plot_type == 'butterfly':
             out = viz.plot_cluster_butterfly(data=data,
                                              template=self.template,
@@ -969,7 +1038,7 @@ class PLSC():
             else:
                 hemi = 'rh'
             # Convert to STC object for plotting
-            stc = self._cluster_to_stc(lv_idx, cluster_idx)
+            stc = self.cluster_to_stc(lv_idx, cluster_idx)
             # Set colour limits from threshold to max
             if self.template.domain == 'time-freq':
                 # We've averaged over frequency when converting to stc
@@ -1025,26 +1094,24 @@ class PLSC():
         -------
         None
         """
+        # TODO: add option to add a higher threshold for ease of visualization
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         if self.template.datatype == 'surf-stc':
             raise ValueError('Spatial and non-spatial cluster visualizations cannot be shown in the same figure. Call .plot_cluster_nonspatial() and .plot_cluster_spatial() separately.')
         else:
-            f, curr_ax = plt.subplots(layout='constrained')
-            # Subdivide into left and right axis
-            sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=curr_ax.get_subplotspec())
-            curr_ax.remove()
+            f, ax = plt.subplots(ncols=2, layout='constrained')
             # Left axis: visualize non-spatial dimension(s)
-            ax_left = f.add_subplot(sub_gs[0])
             self.plot_cluster_nonspatial(lv_idx=lv_idx,
                                          cluster_idx=cluster_idx,
                                          plot_type=plot_type,
                                          highlight=highlight,
-                                         ax=ax_left)
-            ax_right = f.add_subplot(sub_gs[1])
+                                         ax=ax[0])
+            # Right axis: visualize spatial dimension
             self.plot_cluster_spatial(lv_idx=lv_idx,
                                       cluster_idx=cluster_idx,
                                       highlight=highlight,
-                                      ax=ax_right)
+                                      ax=ax[1])
+        return f, ax
     def save(self, path):
         """
         Save a model to .xz using the LZMA algorithm. This is a thin wrapper around python's ``lzma`` library.
@@ -1079,8 +1146,8 @@ def load(path):
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    model
+        The loaded model, of the same .
     """
     
     path = pathlib.Path(path)
