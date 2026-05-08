@@ -89,6 +89,7 @@ def test_mc_within(sample_data):
 def test_beh_args(sample_data):
     # Test different methods of providing data
     data, covariates, between, within, participant, src = sample_data
+    freqs = np.linspace(3, 30, 5)
     mne_plsc.fit_beh(data=data,
                      covariates=covariates[:, 0],
                      random_state=123)
@@ -103,17 +104,22 @@ def test_beh_args(sample_data):
                      between='group',
                      within='cond',
                      participant='ptpt',
-                     random_state=123)
+                     random_state=123,
+                     source_domain='time-freq',
+                     source_freqs=freqs)
     mne_plsc.fit_beh(data=data,
                      covariates=design['cov1'],
                      between=design['group'],
                      within=design['cond'],
                      participant=design['ptpt'],
-                     random_state=123)
+                     random_state=123,
+                     source_domain='time-freq',
+                     source_freqs=freqs)
 
 def test_mc_args(sample_data):
     # Test different methods of providing data
     data, covariates, between, within, participant, src = sample_data
+    freqs = np.linspace(3, 30, 5)
     design = pd.DataFrame(covariates,
                           columns=['cov1', 'cov2'])
     design['group'] = between
@@ -124,12 +130,16 @@ def test_mc_args(sample_data):
                     between='group',
                     within='cond',
                     participant='ptpt',
-                    random_state=123)
+                    random_state=123,
+                    source_domain='time-freq',
+                    source_freqs=freqs)
     mne_plsc.fit_mc(data=data,
                     between=design['group'],
                     within=design['cond'],
                     participant=design['ptpt'],
-                    random_state=123)
+                    random_state=123,
+                    source_domain='time-freq',
+                    source_freqs=freqs)
 
 def test_beh_both(sample_data):
     data, covariates, between, within, participant, src = sample_data
