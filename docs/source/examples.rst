@@ -1,8 +1,8 @@
 
-Examples
-========
+Tutorials
+=========
 
-Below are a set of examples of how to use ``mne-plsc`` to analyze data that ships with MNE-Python.
+Below are a set of tutorials on how to use ``mne-plsc`` to analyze data that ships with MNE-Python.
 
 .. toctree::
    :maxdepth: 1
