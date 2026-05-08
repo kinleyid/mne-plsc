@@ -92,7 +92,9 @@ def test_beh_args(sample_data):
     freqs = np.linspace(3, 30, 5)
     mne_plsc.fit_beh(data=data,
                      covariates=covariates[:, 0],
-                     random_state=123)
+                     random_state=123,
+                     source_domain='time-freq',
+                     source_freqs=freqs)
     design = pd.DataFrame(covariates,
                           columns=['cov1', 'cov2'])
     design['group'] = between

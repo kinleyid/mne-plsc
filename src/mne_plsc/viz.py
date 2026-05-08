@@ -248,10 +248,10 @@ def get_raster_labels(xdim, ydim):
     ylabel = dim_labels[ydim]
     return xlabel, ylabel
 
-def plot_labeled_raster(template, data, xdim, ydim, vlabel=None, vlim=None, ax=None):
+def plot_labeled_raster(template, data, xdim, ydim, cmap='RdBu_r', vlabel=None, vlim=None, ax=None):
     f, ax = _get_ax(ax)
     xdata, ydata = get_raster_axis_data(template, xdim, ydim)
-    im = plot_raster(template, xdata, ydata, data, vlim, ax)
+    im = plot_raster(template, xdata, ydata, data, cmap, vlim, ax)
     # Axis labels
     xlabel, ylabel = get_raster_labels(xdim, ydim)
     ax.set_xlabel(xlabel)
@@ -270,14 +270,14 @@ def plot_labeled_raster(template, data, xdim, ydim, vlabel=None, vlim=None, ax=N
         add_freq_landmarks(ax.yaxis)
     return f, ax
    
-def plot_raster(template, xdata, ydata, data, vlim=None, ax=None):
+def plot_raster(template, xdata, ydata, data, cmap='RdBu_r', vlim=None, ax=None):
     # Just plot the data
     f, ax = _get_ax(ax)
     if vlim is None:
         vma = np.abs(data).max()
         vlim = (-vma, vma)
     im = ax.pcolormesh(xdata, ydata, data,
-                       cmap='RdBu_r',
+                       cmap=cmap,
                        vmin=vlim[0],
                        vmax=vlim[1])
     # Check for log axis scales
@@ -526,7 +526,7 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
         vlabel = data_desc.capitalize()
     plot_cluster_raster(masked, template, cluster, highlight, vlabel, ax)
 
-def plot_cluster_raster(data, template, cluster, highlight, vlabel, ax):
+def plot_cluster_raster(data, template, cluster, highlight, cmap, vlabel, ax):
     # Get dimensions being plotted
     ydim, xdim = template.dimnames[-2:]
     # Get axis data for raster plot
@@ -539,6 +539,7 @@ def plot_cluster_raster(data, template, cluster, highlight, vlabel, ax):
                         data=data,
                         xdim=xdim,
                         ydim=ydim,
+                        cmap=cmap,
                         vlabel=vlabel,
                         ax=ax)
     # Highlight peak in front of cluster
@@ -604,6 +605,7 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
                             template=template,
                             cluster=cluster,
                             highlight=highlight,
+                            cmap='gray',
                             vlabel=spatial_label,
                             ax=ax)
     return f, ax
