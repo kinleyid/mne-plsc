@@ -39,7 +39,7 @@ def sample_data(request):
     return stcs, covariates, between, within, participant, src
 
 def run_result_plots(result):
-    result.plot_boot_stat(0)
+    result.plot_boot_stat(0, with_ci=False)
     result.plot_brain_sals(lv_idx=0)
     # result.plot_cluster_sizes(lv_idx=0)
     if 'plot_marginal_brain_scores' in dir(result):

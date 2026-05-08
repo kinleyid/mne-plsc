@@ -700,7 +700,7 @@ class PLSC():
         df = self.model.get_scores_frame(lv_idx)
         f, ax = viz.score_scatterplot(df, self.grouping, ax=ax)
         return f, ax
-    def plot_boot_stat(self, lv_idx, ax=None):
+    def plot_boot_stat(self, lv_idx, with_ci=True, ax=None):
         """
         Visualize :attr:`model.boot_stat` with a barplot.
 
@@ -708,6 +708,8 @@ class PLSC():
         ----------
         lv_idx : int
             Index of latent variable pair for which the plot should be generated.
+        with_ci : bool, optional
+            Specifies whether to show confidence interval error bars, if bootstrapping has been done. Ignored if bootstrapping has not been done. Default is ``True``.
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -720,7 +722,7 @@ class PLSC():
         out = viz.boot_stat_barplot(df=df,
                                     boot_stat=self.model.boot_stat,
                                     grouping=self.grouping,
-                                    with_ci=self.model._boot_done,
+                                    with_ci=self.model._boot_done and with_ci,
                                     ax=ax)
         return out
     def plot_brain_sals(self, lv_idx, which='saliences', ax=None):
