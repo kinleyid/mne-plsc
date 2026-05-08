@@ -566,6 +566,8 @@ class PLSC():
             DESCRIPTION.
         cluster_idx : TYPE
             DESCRIPTION.
+        which : TYPE, optional
+            DESCRIPTION. The default is 'auto'.
         mask_val : TYPE, optional
             DESCRIPTION. The default is 0.
 
@@ -579,6 +581,7 @@ class PLSC():
         ValueError
             DESCRIPTION.
         """
+        
         # TODO: document
         if self.template.space != 'source':
             raise ValueError('Data must be in source space')
@@ -607,7 +610,7 @@ class PLSC():
                           tstep=tstep,
                           subject=self.template.subject) # TODO: does this make sense in general? Probably not. Subject should be fsaverage for multi-subject analysis but the participant's own ID for single-subject
         return stc
-    def cluster_to_volume(self, lv_idx, cluster_idx, mask_val=0):
+    def cluster_to_volume(self, lv_idx, cluster_idx, which='auto', mask_val=0):
         """
         SUMMARY.
 
@@ -617,16 +620,26 @@ class PLSC():
             DESCRIPTION.
         cluster_idx : TYPE
             DESCRIPTION.
+        which : TYPE, optional
+            DESCRIPTION. The default is 'auto'.
+        mask_val : TYPE, optional
+            DESCRIPTION. The default is 0.
 
         Returns
         -------
         TYPE
             DESCRIPTION.
+
+        Raises
+        ------
+        ValueError
+            DESCRIPTION.
         """
+        
         # TODO: document
         if self.template.space == 'source':
             if self.template.source_type == 'volume':
-                stc = self.cluster_to_stc(lv_idx, cluster_idx, mask_val)
+                stc = self.cluster_to_stc(lv_idx, cluster_idx, which=which, mask_val=mask_val)
                 img = stc.as_volume(src=self.template.src)
                 return img
             else:

@@ -35,7 +35,7 @@ def sample_data(request):
                                     vertices=[vertices],
                                     tmin=times[0],
                                     tstep=1/sfreq,
-                                    subject='fsaverage')
+                                    subject='sample')
         stcs.append(stc)
     return stcs, covariates, between, within, participant, src
 
