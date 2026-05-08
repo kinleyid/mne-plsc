@@ -607,7 +607,7 @@ class PLSC():
                           tstep=tstep,
                           subject=self.template.subject) # TODO: does this make sense in general? Probably not. Subject should be fsaverage for multi-subject analysis but the participant's own ID for single-subject
         return stc
-    def cluster_to_niimg(self, lv_idx, cluster_idx, mask_val=0):
+    def cluster_to_volume(self, lv_idx, cluster_idx, mask_val=0):
         """
         SUMMARY.
 

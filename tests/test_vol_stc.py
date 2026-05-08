@@ -57,6 +57,7 @@ def run_result_methods(result, src):
     result.model.permute(10)
     result.model.bootstrap(10)
     # result.cluster(which='z-scores')
+    result.cluster_to_volume()
     run_result_plots(result)
 
 def test_mc_both(sample_data):
