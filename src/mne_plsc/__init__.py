@@ -244,6 +244,23 @@ class PLSC():
         >>> res.summary()
         """
         return self.model.summary()
+    def get_boot_stat_frame(self, lv_idx=None):
+        """
+        SUMMARY.
+
+        Parameters
+        ----------
+        lv_idx : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+        """
+        # TODO: document
+        df = self.model.get_boot_stat_frame(lv_idx)
+        return df
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
         """
         Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`model.pvals_` attribute.
@@ -548,7 +565,7 @@ class PLSC():
                 # Default to data used for clustering
                 which = info['which']
             if which == 'data':
-                data = self.model.data_[:, lv_idx]
+                data = self.model.data_[:, lv_idx] # TODO: this will not actually work. Need to fix. I guess just reshape each row.
             elif which == 'saliences':
                 data = self.model.data_sals_[:, lv_idx]
             elif which == 'z-scores':

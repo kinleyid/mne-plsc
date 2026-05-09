@@ -412,11 +412,13 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
     elif cluster_info['which'] == 'z-scores':
         which = 'bootstrap ratio (z score)'
     if highlight == 'peak':
-        if template.ndim == 2:
-            peak_dims = template.dimnames[1]
-        else:
-            peak_dims = 'time and frequency'
-        vlabel = '%s at peak %s' % (which, peak_dims)
+        if template.domain == 'time':
+            peak_dim = 'time'
+        elif template.domain == 'freq':
+            peak_dim = 'frequency'
+        elif template.domain == 'time-freq':
+            peak_dim = 'time and frequency'
+        vlabel = '%s at peak %s' % (which, peak_dim)
     elif highlight == 'extent':
         vlabel = 'mean %s in cluster extent' % which
     vlabel = vlabel.capitalize()
@@ -446,7 +448,6 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         cbar.ax.set_ylabel(vlabel)
     elif template.datatype == 'vol-stc':
         spatial_data = spatial_data.reshape((-1, 1))
-        spatial_data[~spatial_mask] = 0
         # Create volume
         stc = mne.VolSourceEstimate(
             data=spatial_data,
@@ -463,6 +464,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
                                bg_img=template.mri,
                                symmetric_cbar=True,
                                draw_cross=False,
+                               threshold=cluster_info['threshold'],
                                axes=ax)
         # Label colorbar
         cbar_ax = f.get_axes()[-1]
@@ -626,7 +628,8 @@ def plot_cluster_distribution(template, cluster, highlight, ax=None):
                             template=template,
                             cluster=cluster,
                             highlight=highlight,
-                            cmap='gray',
+                            vlim=(0, n_in_clust.max()),
+                            cmap='gray_r',
                             vlabel=spatial_label,
                             ax=ax)
     return f, ax
