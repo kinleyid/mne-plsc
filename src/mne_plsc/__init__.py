@@ -549,6 +549,8 @@ class PLSC():
         self.clusters = clusters
         self._clustering_done = True
     def _get_cluster(self, lv_idx, cluster_idx, return_data=True, which='auto'):
+        if not self._clustering_done:
+            raise ValueError('Clustering has not been performed')
         _check_str_arg('which', which,
                        ('auto', 'data', 'saliences', 'z-scores'))
         lv_clusters = self.clusters[lv_idx]
