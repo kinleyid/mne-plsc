@@ -246,19 +246,18 @@ class PLSC():
         return self.model.summary()
     def get_boot_stat_frame(self, lv_idx=None):
         """
-        SUMMARY.
+        Get the statistic estimated during bootstrap resampling as a dataframe, including upper and lower confidence limits if bootstrap resampling has been done.
 
         Parameters
         ----------
-        lv_idx : TYPE, optional
-            DESCRIPTION. The default is None.
+        lv_idx : indexer, optional
+            Index/indices of latent variable pair(s) the dataframe should cover. The default is None, which yields a dataframe covering all latent variables.
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        :class:`pandas.DataFrame`
+            Data frame containing statistic estimated during bootstrap resampling.
         """
-        # TODO: document
         df = self.model.get_boot_stat_frame(lv_idx)
         return df
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
@@ -567,41 +566,41 @@ class PLSC():
                 # Default to data used for clustering
                 which = info['which']
             if which == 'data':
-                data = self.model.data_[:, lv_idx] # TODO: this will not actually work. Need to fix. I guess just reshape each row.
+                # Average over observations
+                data = self.model.data_.mean(axis=0)
             elif which == 'saliences':
-                data = self.model.data_sals_[:, lv_idx]
+                data = self.model.data_sals_[:, lv_idx].copy()
             elif which == 'z-scores':
-                data = self.model.data_sals_z_[:, lv_idx]
-            reshaped = data.copy().reshape(self.template.shape)
+                data = self.model.data_sals_z_[:, lv_idx].copy()
+            reshaped = data.reshape(self.template.shape)
             out += (reshaped,)
         return out
     def cluster_to_stc(self, lv_idx, cluster_idx, which='auto', mask_val=0):
         """
-        SUMMARY.
+        Export cluster to source time course object.
 
         Parameters
         ----------
-        lv_idx : TYPE
-            DESCRIPTION.
-        cluster_idx : TYPE
-            DESCRIPTION.
-        which : TYPE, optional
-            DESCRIPTION. The default is 'auto'.
-        mask_val : TYPE, optional
-            DESCRIPTION. The default is 0.
+        lv_idx : int
+            Latent variable index.
+        cluster_idx : int
+            Cluster index.
+        which : str, optional
+            Specifies the data to be extracted in a cluster. Must be one of:
+            
+            - ``'auto'``: (default) z-scores if bootstrapping has been done, otherwise saliences
+            - ``'saliences'``
+            - ``'z-scores'``
+            - ``'data'``: data, averaged over all observations
+        mask_val : scalar, optional
+            Value that should be used to mask data not in the cluster (e.g., ``numpy.nan``). The default is 0.
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
-
-        Raises
-        ------
-        ValueError
-            DESCRIPTION.
+        :class:`mne.SourceEstimate` | :class:`mne.VolSourceEstimate`
+            Source estimate containing data from cluster.
         """
         
-        # TODO: document
         if self.template.space != 'source':
             raise ValueError('Data must be in source space')
         cluster, _, data = self._get_cluster(lv_idx, cluster_idx, return_data=True, which=which)
@@ -627,44 +626,8 @@ class PLSC():
                           vertices=self.template.vertices,
                           tmin=tmin,
                           tstep=tstep,
-                          subject=self.template.subject) # TODO: does this make sense in general? Probably not. Subject should be fsaverage for multi-subject analysis but the participant's own ID for single-subject
+                          subject=self.template.subject)
         return stc
-    def cluster_to_volume(self, lv_idx, cluster_idx, which='auto', mask_val=0):
-        """
-        SUMMARY.
-
-        Parameters
-        ----------
-        lv_idx : TYPE
-            DESCRIPTION.
-        cluster_idx : TYPE
-            DESCRIPTION.
-        which : TYPE, optional
-            DESCRIPTION. The default is 'auto'.
-        mask_val : TYPE, optional
-            DESCRIPTION. The default is 0.
-
-        Returns
-        -------
-        TYPE
-            DESCRIPTION.
-
-        Raises
-        ------
-        ValueError
-            DESCRIPTION.
-        """
-        
-        # TODO: document
-        if self.template.space == 'source':
-            if self.template.source_type == 'volume':
-                stc = self.cluster_to_stc(lv_idx, cluster_idx, which=which, mask_val=mask_val)
-                img = stc.as_volume(src=self.template.src)
-                return img
-            else:
-                raise ValueError('Model must be in volume source space')
-        else:
-            raise ValueError('Model is not in source space')
     def get_cluster_sizes(self, lv_idx, size_measure='pct-strong'):
         """
         Get sizes of clusters.
@@ -1363,7 +1326,7 @@ class Template():
                     self.datatype = 'epo'
                     self.domain = 'time'
         # Add important attributes
-        for attr in ['times', 'freqs', 'subject', 'tstep']:
+        for attr in ['times', 'freqs', 'tstep']:
             if attr in dir(inst):
                 setattr(self, attr, getattr(inst, attr))
         if self.space == 'sensor':
