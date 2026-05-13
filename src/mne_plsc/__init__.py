@@ -1134,9 +1134,19 @@ class PLSC():
         with lzma.open(path, "wb") as f:
             pickle.dump(self, f)
             
-    def cluster_report():
+    def cluster_report(self):
         raise NotImplementedError()
-
+        if not self._clustering_done:
+            raise ValueError('Clustering has not been done')
+        rows = []
+        for lv_idx in range(self.model.rank_):
+            n_clusters = len(self.clusters[lv_idx])
+            for cluster_idx in range(n_clusters):
+                set_trace()
+                cluster, info = self._get_cluster(lv_idx, cluster_idx, return_data=False)
+                row = {}
+                row['lv_idx'] = lv_idx
+                row['cluster_idx'] = cluster_idx
 def load(path):
     """
     Load a model from .xz. This is a thin wrapper around Python's ``lzma`` library.
