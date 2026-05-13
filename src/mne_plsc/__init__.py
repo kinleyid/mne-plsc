@@ -708,7 +708,12 @@ class PLSC():
                 # Get data at cluster peak
                 df['cluster_peak'] = self.model.data_[:, curr_cluster['peak_flat']]
                 dfs.append(df)
-        # TODO: remove columns based on grouping (e.g., no redundant "between" column if it's never applicable)
+        # Remove not-applicable columns based on grouping
+        if self.grouping in ['within', 'neither']:
+            del df['between']
+        if self.grouping in ['between', 'neither']:
+            del df['within']
+            # del df['participant'] # Doesn't hurt to keep
         return pd.concat(dfs)
         
     def plot_scree(self, which='pct-variance', null_percentile=95, ax=None):
@@ -1089,7 +1094,6 @@ class PLSC():
         -------
         None
         """
-        # TODO: add option to add a higher threshold for ease of visualization
         _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         if self.template.datatype == 'surf-stc':
             raise ValueError('Spatial and non-spatial cluster visualizations cannot be shown in the same figure. Call .plot_cluster_nonspatial() and .plot_cluster_spatial() separately.')
@@ -1281,7 +1285,10 @@ class Template():
         self.freqs = None #: ``numpy.ndarray``: Frequencies, copied from data
         self.subject = None #: ``str``: Freesurfer subject name, copied from data
         self.domain = None #: ``str``: Specifies whether data is time-domain, frequency-domain, or time-frequency.
-        self.tstep = None # TODO: document
+        self.tstep = None # ``float``: Time step for source estimates (or placeholder value source estimate is frequency-domain)
+        self.ndim = None #: ``int``: Number of dimensions in data.
+        self.vertices = None #: ``list``: List of vertices copied from stc object, if applicable.
+        self.info = None #: :class:`mne.Info`: MNE Info object for sensor-space data, if applicable.
         _check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
         # Infer datatype
@@ -1330,9 +1337,9 @@ class Template():
             if attr in dir(inst):
                 setattr(self, attr, getattr(inst, attr))
         if self.space == 'sensor':
-            self.info = inst.info #: :class:`mne.Info`: MNE Info object for data.
+            self.info = inst.info
         elif self.space == 'source':
-            self.vertices = inst.vertices #: ``list``: List of vertices copied from stc object.
+            self.vertices = inst.vertices
         if source_freqs is not None:
             self.freqs = np.array(source_freqs)
         # Get names of data dimensions
@@ -1370,4 +1377,4 @@ class Template():
                 self.shape = inst.data.shape
         assert len(self.shape) == len(self.dimnames)
         self.size = np.prod(self.shape)
-        self.ndim = len(self.dimnames) #: ``int``: Number of dimensions in data.
+        self.ndim = len(self.dimnames)
