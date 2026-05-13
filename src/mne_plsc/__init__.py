@@ -520,6 +520,7 @@ class PLSC():
             # Separate clustering for positive and negative
             print('Computing clusters for lv_idx %s...' % lv_idx)
             curr_thresh = threshold[lv_idx]
+            print('Threshold: %s' % curr_thresh)
             n_above_thresh = np.sum(absdata[:, lv_idx] > curr_thresh)
             idxs, sums = _find_clusters(
                 data[:, lv_idx],

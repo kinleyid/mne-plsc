@@ -161,10 +161,6 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
 def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=None):
     f, ax = _get_ax(ax)
     ax.axhline(0, color='k')
-    if ythresh is not None:
-        # Add y threshold first
-        ax.axhline(-ythresh, c='k', ls=':')
-        ax.axhline(ythresh, c='k', ls=':')
     spatial_cols = get_spatial_colours(info)
     # Plot lines
     for ch_idx in range(len(info['chs'])):
