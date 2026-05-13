@@ -1133,6 +1133,9 @@ class PLSC():
             print('Saving to %s' % basename)
         with lzma.open(path, "wb") as f:
             pickle.dump(self, f)
+            
+    def cluster_report():
+        raise NotImplementedError()
 
 def load(path):
     """
