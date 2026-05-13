@@ -63,6 +63,16 @@ Examine the temporal/spectral/spatial distribution of the major clusters for a g
    mod.plot_cluster_sizes(lv_idx=0)
    mod.plot_cluster(lv_idx=0, cluster_idx=0)
 
+5. Extract and export data in cluster(s)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For further analysis, we can extract data at cluster peaks (or averages within clusters) and export to a spreadsheet.
+
+.. code-block::
+   
+   df = mod.get_cluster_data(lv_idx=[0, 1, 2], cluster_idx=[0, 1])
+   df.to_csv('cluster-data.csv')
+
 See the examples for more details.
 
 .. toctree::
