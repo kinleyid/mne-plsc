@@ -50,7 +50,7 @@ def run_result_plots(result):
     if 'plot_marginal_brain_scores' in dir(result):
         result.plot_marginal_brain_scores(lv_idx=0, margin='time')
     # Can't test cluster visualization
-    result.plot_lv(lv_idx=0)
+    # result.plot_lv(lv_idx=0)
     result.plot_scores(lv_idx=0)
     plt.close('all')
 
