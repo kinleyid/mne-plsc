@@ -162,8 +162,8 @@ def fit_within_beh(data,
 
     Parameters
     ----------
-    data : MNE object or iterable of MNE objects
-        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers, and each observation will be a participant's average in a within-participants condition.
+    data : iterable of MNE objects
+        The M/EEG data to analyze. Each element of the iterable should correspond to a single participant.
     covariates : iterable of ``str``
         An iterable of strings specifying the name(s) of the columns in the ``.metadata`` of each object in ``data`` that contain the covariates.
     within : ``str``, optional
