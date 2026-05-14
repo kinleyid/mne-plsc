@@ -889,7 +889,7 @@ class PLSC():
                                                   ax=ax)
         return f, ax
             
-    def plot_lv(self, lv_idx, which='saliences'):
+    def plot_lv(self, lv_idx, which='saliences', with_ci=True):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
 
@@ -899,6 +899,8 @@ class PLSC():
             Index of latent variable pair(s) for which the plot should be generated.
         which : str, optional
             Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted in the right panel. The default is `'saliences'`.
+        with_ci : bool, optional
+            Controls confidence interval plotting. See :meth:`plot_boot_stat`.
 
         Returns
         -------
@@ -910,7 +912,7 @@ class PLSC():
                              width_ratios=[3, 2],
                              layout='constrained')
         self.plot_brain_sals(lv_idx, ax=ax[0], which=which)
-        self.plot_boot_stat(lv_idx, ax=ax[1])
+        self.plot_boot_stat(lv_idx, ax=ax[1], with_ci=with_ci)
         return f, ax
     def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, ax=None):
         """
