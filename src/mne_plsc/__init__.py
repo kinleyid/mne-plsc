@@ -841,17 +841,12 @@ class PLSC():
                 elif self.template.domain == 'freq':
                     xdata = self.template.freqs
                     xlabel = 'Frequecy (Hz)'
-                if self._clustering_done:
-                    ythresh = self.clusters[lv_idx]['info']['threshold']
-                else:
-                    ythresh = None
                 f, ax = viz.channel_lineplot(x=xdata,
                                              ch_y=data,
                                              info=self.template.info,
                                              ax=ax,
                                              xlabel=xlabel,
-                                             ylabel=label,
-                                             ythresh=ythresh)
+                                             ylabel=label)
             elif self.template.space == 'source':
                 if self.template.source_type == 'surface':
                     # Raster is the best we can do for now
@@ -1135,6 +1130,19 @@ class PLSC():
             pickle.dump(self, f)
             
     def cluster_report(self):
+        """
+        Create a table reporting the size and location of each cluster.
+
+        Returns
+        -------
+        :class:`pandas.DataFrame`
+            Dataframe containing the report.
+        
+        Notes
+        -----
+        Three different size measures are exported: `cluster_size_abs` is the absolute size of the cluster, `cluster_size_ppn_total` is size as a proportion of total saliences per LV, and `cluster_size_ppn_strong` is size as a proportion of the number of "strong" saliences in the given LV.
+        """
+        
         if not self._clustering_done:
             raise ValueError('Clustering has not been done')
         rows = []
