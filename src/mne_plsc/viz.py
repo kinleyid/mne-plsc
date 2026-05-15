@@ -162,6 +162,9 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     f, ax = _get_ax(ax)
     ax.axhline(0, color='k')
     spatial_cols = get_spatial_colours(info)
+    # Plot threshold
+    ax.axhline(ythresh, color='k', linestyle=':')
+    ax.axhline(-ythresh, color='k', linestyle=':')
     # Plot lines
     for ch_idx in range(len(info['chs'])):
         y = ch_y[ch_idx]

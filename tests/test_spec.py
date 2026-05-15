@@ -56,6 +56,7 @@ def run_result_methods(result):
     result.model.permute(10)
     result.model.bootstrap(10)
     result.cluster(which='z-scores')
+    result.cluster_report()
     result.get_cluster_data(lv_idx=0, cluster_idx=0)
     run_result_plots(result)
     result.brain_sals_to_mne(0)

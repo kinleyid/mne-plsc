@@ -11,6 +11,7 @@ description = "PLSC for MNE"
 authors = [{ name="Isaac Kinley", email="isaac.kinley@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
+license = "MIT"
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov"]

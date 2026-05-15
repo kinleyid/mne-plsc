@@ -65,6 +65,7 @@ def run_result_methods(result):
     result.summary()
     result.bootstrap(10)
     result.cluster(which='z-scores')
+    result.cluster_report()
     run_result_plots(result)
     result.brain_sals_to_mne(0)
 

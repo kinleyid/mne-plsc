@@ -69,7 +69,7 @@ def average_epochs_by_label(epochs_list, between=None):
     design = pd.DataFrame.from_records(rows)
     return data_list, design
 
-def average_epochs_by_metadata(epochs_list, column, between=None):
+def average_epochs_by_metadata(epochs_list, columns, between=None):
     """
     From a list of epoch data, get a list of average data, one per unique value in a metadata column per participant, and a design matrix.
 
@@ -77,8 +77,8 @@ def average_epochs_by_metadata(epochs_list, column, between=None):
     ----------
     epochs_list : :class:`mne.Epochs` | :class:`mne.time_frequency.EpochsSpectrum` | :class:`mne.time_frequency.EpochsTFR`
         MNE data object containing epoch data.
-    column : ``str``
-        Name of the column in each epoch's metadata containing a variable that should be used to stratify observations. I.e., the name of the column containing the within-subjects experimental condition.
+    column : ``str`` | iterable of column names
+        Name of the column(s) in each epoch's metadata containing a variable or set of variables that should be used to stratify observations. E.g., the name of the column containing the within-subjects experimental condition.
     between : iterable
         Iterable of between-participants condition labels corresponding to each element in ``epochs_list``.
 
@@ -101,7 +101,8 @@ def average_epochs_by_metadata(epochs_list, column, between=None):
     data_list = []
     rows = []
     for ptpt_idx, ptpt_data in enumerate(epochs_list):
-        cond = ptpt_data.metadata[column]
+        cond = ptpt_data.metadata[columns].astype(str).agg('_'.join, axis=1)
+        # cond = ptpt_data.metadata[column]
         labels = cond.unique()
         for label in labels:
             avg = ptpt_data[cond == label].average()

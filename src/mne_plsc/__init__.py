@@ -1138,7 +1138,6 @@ class PLSC():
             pickle.dump(self, f)
             
     def cluster_report(self):
-        raise NotImplementedError()
         if not self._clustering_done:
             raise ValueError('Clustering has not been done')
         rows = []
@@ -1150,6 +1149,27 @@ class PLSC():
                 row = {}
                 row['lv_idx'] = lv_idx
                 row['cluster_idx'] = cluster_idx
+                # Measure size of cluster
+                abs_size = len(cluster['idx'])
+                row['cluster_size_abs'] = abs_size 
+                row['cluster_size_ppn_total'] = abs_size / self.template.size
+                row['cluster_size_ppn_strong'] = abs_size / info['n_above_thresh']
+                # Get peak
+                peak_coords = cluster['peak_coords']
+                # Get spatial peak
+                spatial_peak = peak_coords[0]
+                if self.template.space == 'sensor':
+                    row['peak_chan'] = self.template.info['ch_names'][spatial_peak]
+                elif self.template.space == 'source':
+                    raise NotImplementedError()
+                # Get non-spatial peak
+                if self.template.domain == 'time':
+                    row['peak_time'] = self.template.times[peak_coords[1]]
+                elif self.template.domain == 'freq':
+                    row['peak_freq'] = self.template.freqs[peak_coords[1]]
+                elif self.template.domain == 'time-freq':
+                    row['peak_freq'] = self.template.freqs[peak_coords[1]]
+                    row['peak_time'] = self.template.times[peak_coords[2]]
 def load(path):
     """
     Load a model from .xz. This is a thin wrapper around Python's ``lzma`` library.
