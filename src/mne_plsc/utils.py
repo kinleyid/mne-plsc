@@ -101,7 +101,10 @@ def average_epochs_by_metadata(epochs_list, columns, between=None):
     data_list = []
     rows = []
     for ptpt_idx, ptpt_data in enumerate(epochs_list):
-        cond = ptpt_data.metadata[columns].astype(str).agg('_'.join, axis=1)
+        if isinstance(columns, str):
+            cond = ptpt_data.metadata[columns]
+        else:
+            cond = ptpt_data.metadata[columns].astype(str).agg('_'.join, axis=1)
         # cond = ptpt_data.metadata[column]
         labels = cond.unique()
         for label in labels:
