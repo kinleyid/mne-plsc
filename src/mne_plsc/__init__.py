@@ -1142,9 +1142,8 @@ class PLSC():
             raise ValueError('Clustering has not been done')
         rows = []
         for lv_idx in range(self.model.rank_):
-            n_clusters = len(self.clusters[lv_idx])
+            n_clusters = len(self.clusters[lv_idx]['clusters'])
             for cluster_idx in range(n_clusters):
-                set_trace()
                 cluster, info = self._get_cluster(lv_idx, cluster_idx, return_data=False)
                 row = {}
                 row['lv_idx'] = lv_idx
@@ -1170,6 +1169,9 @@ class PLSC():
                 elif self.template.domain == 'time-freq':
                     row['peak_freq'] = self.template.freqs[peak_coords[1]]
                     row['peak_time'] = self.template.times[peak_coords[2]]
+                rows.append(row)
+        report = pd.DataFrame.from_records(rows)
+        return report
 def load(path):
     """
     Load a model from .xz. This is a thin wrapper around Python's ``lzma`` library.

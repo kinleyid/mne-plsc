@@ -59,7 +59,7 @@ def run_result_methods(result):
 
 def test_utils(sample_data):
     mne_plsc.utils.average_epochs_by_label(sample_data)
-    mne_plsc.utils.average_epochs_by_metadata(sample_data, column='cond')
+    mne_plsc.utils.average_epochs_by_metadata(sample_data, columns='cond')
 
 def test_within(sample_data):
     result = mne_plsc.fit_within_beh(data=sample_data,
