@@ -1160,7 +1160,14 @@ class PLSC():
                 if self.template.space == 'sensor':
                     row['peak_chan'] = self.template.info['ch_names'][spatial_peak]
                 elif self.template.space == 'source':
-                    raise NotImplementedError()
+                    if self.template.source_type == 'volume':
+                        spatial_peak_coords = self.template.src[0]['rr'][spatial_peak]
+                        row['peak_x'] = spatial_peak_coords[0]
+                        row['peak_y'] = spatial_peak_coords[1]
+                        row['peak_z'] = spatial_peak_coords[2]
+                    elif self.template.source_type == 'surface':
+                        set_trace()
+                        raise NotImplementedError()
                 # Get non-spatial peak
                 if self.template.domain == 'time':
                     row['peak_time'] = self.template.times[peak_coords[1]]

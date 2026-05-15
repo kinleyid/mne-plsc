@@ -54,6 +54,7 @@ def run_result_methods(result, src):
     result.add_source_info(src=src)
     result.add_adjacency()
     result.cluster()
+    result.cluster_report()
     result.model.permute(10)
     result.model.bootstrap(10)
     # result.cluster(which='z-scores')
