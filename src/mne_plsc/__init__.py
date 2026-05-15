@@ -1019,7 +1019,7 @@ class PLSC():
 
         Returns
         -------
-        TYPE
+        TYPE TODO: document
             DESCRIPTION.
         """
         
@@ -1036,10 +1036,7 @@ class PLSC():
             elif self.template.domain == 'time-freq':
                 vert_peak, freq_peak, time_peak = cluster['peak_coords']
                 initial_time = self.template.times[time_peak]
-            if vert_peak < self.template.vertices[0].size:
-                hemi = 'lh'
-            else:
-                hemi = 'rh'
+            hemi = utils.determine_vertex_hemisphere(vert_peak, self.template)
             # Convert to STC object for plotting
             stc = self.cluster_to_stc(lv_idx, cluster_idx)
             # Set colour limits from threshold to max
@@ -1161,13 +1158,17 @@ class PLSC():
                     row['peak_chan'] = self.template.info['ch_names'][spatial_peak]
                 elif self.template.space == 'source':
                     if self.template.source_type == 'volume':
-                        spatial_peak_coords = self.template.src[0]['rr'][spatial_peak]
-                        row['peak_x'] = spatial_peak_coords[0]
-                        row['peak_y'] = spatial_peak_coords[1]
-                        row['peak_z'] = spatial_peak_coords[2]
+                        ss = self.template.src[0]
                     elif self.template.source_type == 'surface':
-                        set_trace()
-                        raise NotImplementedError()
+                        hemi = utils.determine_vertex_hemisphere(spatial_peak, self.template)
+                        if hemi == 'lh':
+                            ss = self.template.src[0]
+                        elif hemi == 'rh':
+                            ss = self.template.src[1]
+                    spatial_peak_coords = ss['rr'][spatial_peak]
+                    row['peak_x'] = spatial_peak_coords[0]
+                    row['peak_y'] = spatial_peak_coords[1]
+                    row['peak_z'] = spatial_peak_coords[2]
                 # Get non-spatial peak
                 if self.template.domain == 'time':
                     row['peak_time'] = self.template.times[peak_coords[1]]

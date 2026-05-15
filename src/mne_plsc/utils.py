@@ -185,3 +185,10 @@ def get_cluster_extent(mask):
     slices = tuple(slice(lo, hi + 1) for lo, hi in lims)
     in_extent[slices] = True
     return in_extent, lims
+
+def determine_vertex_hemisphere(vert, template):
+    if vert < template.vertices[0].size:
+        hemi = 'lh'
+    else:
+        hemi = 'rh'
+    return hemi
