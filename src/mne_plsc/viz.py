@@ -423,22 +423,22 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
     elif highlight == 'extent':
         vlabel = 'mean %s in cluster extent' % which
     vlabel = vlabel.capitalize()
+    # TODO: reorganize this function
+    if template.space == 'source':
+        data[~cluster['mask']] = 0
     if highlight == 'extent':
         # Get spatial data within cluster extent
         extent, _ = utils.get_cluster_extent(cluster['mask'])
         spatial_data = data[:, extent].mean(axis=-1)
-        # Highlight all spatial locations that are ever in the cluster
-        spatial_mask = cluster['mask'].sum(axis=-1) > 0
     elif highlight == 'peak':
         # Get spatial data at non-spatial peak
         peak_coords = cluster['peak_coords'][1:] # skip spatial dimension
-        idx = (slice(None),) + peak_coords
+        peak_idx = (slice(None),) + peak_coords
         # spatial_data = data[:, *peak_coords]
-        spatial_data = data[idx]
-        # Highlight spatial locations that are in the cluster at the peak
-        # spatial_mask = cluster['mask'][:, *peak_coords]
-        spatial_mask = cluster['mask'][idx]
+        spatial_data = data[peak_idx]
     if template.space == 'sensor':
+        # Highlight all sensors that are ever in the cluster
+        spatial_mask = cluster['mask'].sum(axis=-1) > 0
         im, _ = mne.viz.plot_topomap(data=spatial_data,
                                      pos=template.info,
                                      axes=ax,
@@ -461,12 +461,13 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         # Remove time dimension
         vol = image.index_img(vol, 0)
         # Display image
-        plotting.plot_stat_map(vol,
-                               bg_img=template.mri,
-                               symmetric_cbar=True,
-                               draw_cross=False,
-                               threshold=cluster_info['threshold'],
-                               axes=ax)
+        kwargs = dict(symmetric_cbar=True,
+                      draw_cross=False,
+                      threshold=cluster_info['threshold'],
+                      axes=ax)
+        if template.mri is not None:
+            kwargs['bg_img'] = template.mri
+        plotting.plot_stat_map(vol, **kwargs)
         # Label colorbar
         cbar_ax = f.get_axes()[-1]
         cbar_ax.set_ylabel(vlabel, color='white')
