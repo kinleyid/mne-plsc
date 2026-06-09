@@ -412,6 +412,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         which = 'salience'
     elif cluster_info['which'] == 'z-scores':
         which = 'bootstrap ratio (z score)'
+    # set_trace()
     if highlight == 'peak':
         if template.domain == 'time':
             peak_dim = 'time'
@@ -470,7 +471,11 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         plotting.plot_stat_map(vol, **kwargs)
         # Label colorbar
         cbar_ax = f.get_axes()[-1]
-        cbar_ax.set_ylabel(vlabel, color='white')
+        if template.mri is not None:
+            vlabel_col = 'white'
+        else:
+            vlabel_col = 'black'
+        cbar_ax.set_ylabel(vlabel, color=vlabel_col)
     return f, ax
     
 def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, ax=None):

@@ -22,11 +22,11 @@ def _check_str_arg(argname, provided, allowed):
         raise BadStrArgError(argname, provided, allowed)
 
 def fit_beh(data,
+            obs_level,
             covariates,
-            design=None,
             between=None,
-            within=None,
             participant=None,
+            within=None,
             source_domain=None,
             source_freqs=None,
             boot_stat='score-covariate-corr',
@@ -39,16 +39,16 @@ def fit_beh(data,
     ----------
     data : MNE object or iterable of MNE objects
         The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition.
-    covariates : ``np.ndarray`` | ``pd.DataFrame`` | iterable of ``str``
-        Array or dataframe containing covariates, or an iterable of strings specifying the name(s) of the column(s) in ``design`` that contain the covariates.
-    design : ``pd.DataFrame``, optional
-        Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
-    between : iterable | ``str``, optional
-        An iterable containing indicators (integer or string labels) of between-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
-    within : iterable | ``str``, optional
-        An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
-    participant : iterable | ``str``, optional
-        An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    obs_level : {'participant', 'within'/condition'/'cond', 'trial'}
+        String specifying the observation level, i.e., the granularity of each row in the data matrix.
+    covariates : ``np.ndarray`` | ``pd.DataFrame``
+        Array or dataframe containing covariates.
+    between : array-like
+        An iterable containing indicators (integer or string labels) of between-participants conditions. The default is ``None``.
+    within : array-like
+        An iterable containing indicators (integer or string labels) of within-participants conditions. The default is ``None``.
+    participant : array-like
+        An iterable containing indicators (integer or string labels) of participant identity. This is required when obs_level='within'/'cond'/'condition'. The default is ``None``.
     source_domain : ``str``, optional
         If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
         
@@ -73,21 +73,20 @@ def fit_beh(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    datamat = utils.get_datamat(data, template)
-    model = pyplsc.PLSC(boot_stat,
-                        svd_method,
-                        random_state)
+    datamat, labels = utils.standardize_input(data, obs_level, between, within, participant, template)
+    if len(covariates) != len(datamat):
+        raise ValueError('Must be as many observations of covariates as there are of the data.')
+    model = pyplsc.PLSC(boot_stat=boot_stat,
+                        svd_method=svd_method,
+                        random_state=random_state)
     model.fit(data=datamat,
               covariates=covariates,
-              design=design,
-              between=between,
-              within=within,
-              participant=participant)
+              labels=labels)
     grouping = utils.get_grouping(between, within)
     return PLSC(template, model, grouping)
 
 def fit_mc(data,
-           design=None,
+           obs_level,
            between=None,
            within=None,
            participant=None,
@@ -104,8 +103,6 @@ def fit_mc(data,
     ----------
     data : MNE object or iterable of MNE objects
         The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition. For source-space analysis, data will always be a list of source time courses.
-    design : ``pd.DataFrame``, optional
-        Design matrix containing indicators of experimental condition and/or covariates. The default is ``None``.
     between : iterable | ``str``, optional
         An iterable containing indicators (integer or string labels) of between-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
     within : iterable | ``str``, optional
@@ -136,74 +133,13 @@ def fit_mc(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    datamat = utils.get_datamat(data, template)
+    datamat, labels, modeled = utils.standardize_input(data, obs_level, between, within, participant, template)
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state)
-    model.fit(data=datamat,
-              design=design,
-              between=between,
-              within=within,
-              participant=participant,
-              effects=effects)
+    model.fit(datamat, labels, modeled)
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
-
-def fit_within_beh(data,
-                   covariates,
-                   within=None,
-                   source_domain=None,
-                   source_freqs=None,
-                   boot_stat='score-covariate-corr',
-                   svd_method='lapack',
-                   random_state=None):
-    """
-    Fit within-participants behaviour PLS model.
-
-    Parameters
-    ----------
-    data : iterable of MNE objects
-        The M/EEG data to analyze. Each element of the iterable should correspond to a single participant.
-    covariates : iterable of ``str``
-        An iterable of strings specifying the name(s) of the columns in the ``.metadata`` of each object in ``data`` that contain the covariates.
-    within : ``str``, optional
-        A string specifying the name of a column in the ``.metadata`` of each object in ``data`` that contains an indicator of within-participants condition. The default is ``None``, which does not stratify observations by within-participants condition.
-    source_domain : ``str``, optional
-        If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
-        
-        - ``'time'`` For output of :func:`mne.minimum_norm.apply_inverse`, :func:`mne.beamformer.apply_lcmv`, etc. This is assumed by default.
-        - ``'freq'`` For output of :func:`mne.minimum_norm.apply_inverse_cov`, :func:`mne.beamformer.apply_dics`, etc.
-        - ``'time-freq'`` For output of :func:`mne.minimum_norm.apply_dics_tfr_epochs, :func:`mne.beamformer.apply_dics_tfr_epochs`, etc.
-    source_freqs : ``numpy.ndarray``, optional
-        If model is fit to source-space data and source domain is time or time-frequency, this argument specifies the frequencies in the source data.
-    boot_stat : ``str``, optional
-        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``.
-    svd_method : ``str``, optional
-        The method of SVD decomposition. The default is ``'lapack'``.
-    random_state : ``int``, optional
-        Random state for seeding the model. The default is None.
-
-    Returns
-    -------
-    :class:`PLSC`
-        PLSC model fit to the data.
-    """
-    
-    if not isinstance(data, list):
-        data = [data]
-    template = Template(data,
-                        source_domain=source_domain,
-                        source_freqs=source_freqs)
-    datamat_list = [utils.get_datamat(ptpt, template) for ptpt in data]
-    design_list = [ptpt.metadata for ptpt in data]
-    model = pyplsc.WPLSC(boot_stat=boot_stat,
-                         svd_method=svd_method,
-                         random_state=random_state)
-    model.fit(data=datamat_list,
-              design=design_list,
-              covariates=covariates,
-              within=within)
-    return PLSC(template, model, grouping='between')
 
 class PLSC():
     """
@@ -794,7 +730,7 @@ class PLSC():
                                     with_ci=self.model._boot_done and with_ci,
                                     ax=ax)
         return out
-    def plot_brain_sals(self, lv_idx, which='saliences', ax=None):
+    def plot_brain_sals(self, lv_idx, which='auto', ax=None):
         """
         Plot of brain saliences.
 
@@ -803,7 +739,7 @@ class PLSC():
         lv_idx : int
             Index of latent variable pair for which the plot should be generated.
         which : str, optional
-            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted. The default is `'saliences'`.
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted. The default is `'auto'`, which defaults to z-scores if they are available.
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -813,7 +749,12 @@ class PLSC():
             Figure and axes containing plot.
         """
         _check_str_arg('which', which,
-                       ('saliences', 'z-scores'))
+                       ('saliences', 'z-scores', 'auto'))
+        if which == 'auto':
+            if self.model._boot_done:
+                which = 'z-scores'
+            else:
+                which = 'saliences'
         if which == 'z-scores':
             data = self.model.data_sals_z_[:, lv_idx]
             label = 'z score'
@@ -884,7 +825,7 @@ class PLSC():
                                                   ax=ax)
         return f, ax
             
-    def plot_lv(self, lv_idx, which='saliences', with_ci=True):
+    def plot_lv(self, lv_idx, which='auto', with_ci=True):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
 
@@ -893,7 +834,7 @@ class PLSC():
         lv_idx : indexer
             Index of latent variable pair(s) for which the plot should be generated.
         which : str, optional
-            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted in the right panel. The default is `'saliences'`.
+            Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted. The default is `'auto'`, which defaults to z-scores if they are available.
         with_ci : bool, optional
             Controls confidence interval plotting. See :meth:`plot_boot_stat`.
 
