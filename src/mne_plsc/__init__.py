@@ -29,6 +29,7 @@ def fit_beh(data,
             within=None,
             source_domain=None,
             source_freqs=None,
+            metadata_list=None,
             boot_stat='score-covariate-corr',
             svd_method='lapack',
             random_state=None):
@@ -73,15 +74,22 @@ def fit_beh(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    datamat, labels = utils.standardize_input(data, obs_level, between, within, participant, template)
-    if len(covariates) != len(datamat):
-        raise ValueError('Must be as many observations of covariates as there are of the data.')
+    datamat, labels, modeled, covariates = utils.standardize_input(
+        data=data,
+        obs_level=obs_level,
+        between=between,
+        within=within,
+        participant=participant,
+        covariates=covariates,
+        template=template,
+        metadata_list=metadata_list)
     model = pyplsc.PLSC(boot_stat=boot_stat,
                         svd_method=svd_method,
                         random_state=random_state)
     model.fit(data=datamat,
-              covariates=covariates,
-              labels=labels)
+              labels=labels,
+              modeled=modeled,
+              covariates=covariates)
     grouping = utils.get_grouping(between, within)
     return PLSC(template, model, grouping)
 
@@ -143,7 +151,7 @@ def fit_mc(data,
 
 class PLSC():
     """
-    Container for PLSC models returned by :func:`fit_beh` and within-participants PLSC models returned by :func:`fit_within_beh`.
+    Container for PLSC models returned by :func:`fit_beh`. Also the parent class for :class:`MCPLSC`
     
     Parameters
     ----------
@@ -196,6 +204,23 @@ class PLSC():
         """
         df = self.model.get_boot_stat_frame(lv_idx)
         return df
+    def flip_signs(self, lv_idx=None):
+        """
+        Flips the signs of one or more latent variables, to aid with interpretation.
+
+        Parameters
+        ----------
+        lv_idx : indexer
+            The index or indices of latent variables whose signs should be flipped. If None (default), signs are flipped for all latent variables.
+
+        Examples
+        --------
+        >>> mod.flip_signs() # Flip all signs
+        >>> mod.flip_signs(0) # Flip signs for the first latent variable
+        >>> mod.flip_signs([0, 1]) # Flip signs for the first two   latent variables
+
+        """
+        self.model.flip_signs(lv_idx)
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
         """
         Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`model.pvals_` attribute.

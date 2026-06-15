@@ -214,7 +214,7 @@ from typing import Literal
 
 OBS_LEVEL = Literal['participant', 'condition', 'cond', 'within', 'trial']
 
-def standardize_input(data, obs_level, between, within, participant, template):
+def standardize_input(data, obs_level, between, within, participant, covariates, template, metadata_list):
     """
     Convert MNE data objects to a (n_obs, n_features) matrix and a label DataFrame.
 
@@ -253,7 +253,7 @@ def standardize_input(data, obs_level, between, within, participant, template):
                  'trial' added for obs_level 'trial'.
                  'group' added if 'between' is provided at sub-participant levels.
     """
-
+    
     # Get observation level
     if obs_level in ('cond', 'within'):
         obs_level = 'condition'
@@ -277,9 +277,19 @@ def standardize_input(data, obs_level, between, within, participant, template):
         datamat = np.stack(all_obs)
     elif isinstance(data, list):
         # Each list element is an MNE object
-        datamat = np.stack([get_data(item).flatten() for item in data])
+        if obs_level == 'trial':
+            # Don't flatten over epoch level
+            submatrices = []
+            for item in data:
+                submatrix = get_data(item)
+                submatrix = np.stack([trial.flatten() for trial in submatrix])
+                submatrices.append(submatrix)
+            datamat = np.concat(submatrices)
+        else:
+            # Fine to flatten over epoch level
+            datamat = np.stack([get_data(item).flatten() for item in data])
     else:
-        # Obs level has to be trial
+        # Single-subject analysis; obs level has to be trial
         if obs_level != 'trial':
             raise ValueError(
                 "If only one object is provided (not a list), obs_level must be 'trial'"
@@ -314,11 +324,18 @@ def standardize_input(data, obs_level, between, within, participant, template):
                 f"obs_level='participant': 'participant' must have length "
                 f"n_obs={n_obs}, got {len(participant)}."
             )
+        if covariates is not None and len(covariates) != n_obs:
+            raise ValueError(
+                f"obs_level='participant': 'covariates' must have length "
+                f"n_obs={n_obs}, got {len(covariates)}."
+            )
         if between is not None:
             label_dict['between'] = between
         if participant is None:
             participant = np.arange(n_obs)
         label_dict['participant'] = participant
+        if covariates is not None:
+            covariate_table = covariates
             
     elif obs_level == 'condition':
         if participant is None:
@@ -345,6 +362,11 @@ def standardize_input(data, obs_level, between, within, participant, template):
                 f"obs_level='condition': 'between' must have one entry per unique "
                 f"participant ({len(np.unique(participant))}), got {len(between)}."
             )
+        if covariates is not None and len(covariates) != n_obs:
+            raise ValueError(
+                f"'covariates' must have length "
+                f"n_obs={n_obs}, got {len(covariates)}."
+            )
         
         if between is not None:
             between_map = dict(zip(np.unique(participant), between))
@@ -358,16 +380,27 @@ def standardize_input(data, obs_level, between, within, participant, template):
                 "obs_level='trial': 'participant' is inferred from the data list "
                 "and should not be provided explicitly."
             )
-        if within is not None and len(within) != n_obs:
+        if within is not None and not isinstance(within, str):
             raise ValueError(
-                f"obs_level='trial': 'within' must have length "
-                f"n_obs={n_obs}, got {len(within)}."
+                "obs_level='trial': 'within' must be specified as a string"
             )
         if between is not None and len(between) != len(data):
             raise ValueError(
                 f"obs_level='trial': 'between' must have one entry per participant "
                 f"(len(data)={len(data)}), got {len(between)}."
             )
+        if covariates is not None:
+            cov_error = False
+            if isinstance(covariates, list):
+                if not all(isinstance(c, str) for c in covariates):
+                    cov_error = True
+            elif not isinstance(covariates, str):
+                cov_error = True
+            if cov_error:
+                raise ValueError(
+                    "obs_level='trial': 'covariates' must be specified as a string"
+                )
+                
         # Infer participant IDs from list structure
         if isinstance(data, list):
             n_ptpt = len(data)
@@ -380,8 +413,21 @@ def standardize_input(data, obs_level, between, within, participant, template):
             between_map = dict(zip(np.arange(len(data)), between))
             label_dict['between'] = np.array([between_map[p] for p in ptpt_ids])
         label_dict['participant'] = ptpt_ids
-        label_dict['within'] = within
         label_dict['trial'] = np.concat([np.arange(n_trials) for n_trials in trials_per_participant])
+        
+        if within is not None or covariates is not None:
+            # within labels and covariates will be extracted from metadata
+            # First generate metadata list
+            if metadata_list is None:
+                if not all([hasattr(item, 'metadata') for item in data]):
+                    raise ValueError('Not all data objects contain metadata')
+                else:
+                    metadata_list = [item.metadata for item in data]
+        # Extract columns of interest
+        if within is not None:
+            label_dict['within'] = pd.concat([md[within] for md in metadata_list])
+        if covariates is not None:
+            covariate_table = pd.concat([md[covariates] for md in metadata_list])
 
     # Enforce column order
     labels = pd.DataFrame(label_dict)
@@ -398,4 +444,8 @@ def standardize_input(data, obs_level, between, within, participant, template):
         else:
             modeled.append(False)
     
-    return datamat, labels, modeled
+    out = (datamat, labels, modeled)
+    if covariates is not None:
+        out += (covariate_table,)
+    
+    return out
