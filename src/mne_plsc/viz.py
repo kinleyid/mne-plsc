@@ -411,7 +411,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
     if cluster_info['which'] == 'saliences':
         which = 'salience'
     elif cluster_info['which'] == 'z-scores':
-        which = 'bootstrap ratio (z score)'
+        which = 'z score'
     # set_trace()
     if highlight == 'peak':
         if template.domain == 'time':
@@ -496,7 +496,7 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
     if which == 'saliences':
         ylabel = 'Salience'
     elif which == 'z-scores':
-        ylabel = 'Bootstrap ratio (z score)'
+        ylabel = 'z score'
     # Add highlighting first
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax)
@@ -528,7 +528,7 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
     if which == 'saliences':
         data_desc = 'salience'
     elif which == 'z-scores':
-        data_desc = 'bootstrap ratio (z score)'
+        data_desc = 'z score'
     else:
         raise ValueError(which)
     if template.domain == 'time-freq':
