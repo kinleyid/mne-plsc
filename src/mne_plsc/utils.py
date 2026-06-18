@@ -303,9 +303,9 @@ def standardize_input(data, obs_level, between, within, participant, covariates,
     n_obs = len(datamat)
 
     # Data labels to array
-    between     = np.asarray(between)     if between     is not None else None
-    within      = np.asarray(within)      if within      is not None else None
-    participant = np.asarray(participant) if participant is not None else None
+    # between     = np.asarray(between)     if between     is not None else None
+    # within      = np.asarray(within)      if within      is not None else None
+    # participant = np.asarray(participant) if participant is not None else None
 
     # Build data labels dataframe
     label_dict: dict = {}

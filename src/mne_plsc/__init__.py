@@ -172,7 +172,8 @@ class PLSC():
         self.model = model #: :class:`pyplsc.PLSC`: A PLSC model.
         self.grouping = grouping #: ``str``: Used to specify whether data are specified by within-participants condition, between-participants condition, both, or neither.
         self._clustering_done = False
-        self.null_dist = None #: ``numpy.ndarray``: Array contain null distribution of singular values. Set by :meth:`permute`.
+        self.null_dist = None #: ``numpy.ndarray``: Array containing null distribution of singular values. Set by :meth:`permute`.
+        self.boot_stat_dist = None #: ``numpy.ndarray``: Array containing bootstrap distribution of boot_stat. Set by :meth:`bootstrap`.
         self.clusters = None #: ``list``: A list of clusters per latent variable pair.
     def summary(self):
         """
@@ -204,6 +205,30 @@ class PLSC():
         """
         df = self.model.get_boot_stat_frame(lv_idx)
         return df
+    def get_boot_stat_dist_frame(self, lv_idx=None):
+        """
+        Get the statistic estimated during bootstrap resampling as a dataframe, including upper and lower confidence limits if bootstrap resampling has been done.
+
+        Parameters
+        ----------
+        lv_idx : indexer, optional
+            Index/indices of latent variable pair(s) the dataframe should cover. The default is None, which yields a dataframe covering all latent variables.
+
+        Returns
+        -------
+        :class:`pandas.DataFrame`
+            Data frame containing statistic estimated during bootstrap resampling.
+        """
+        if self.boot_stat_dist is None:
+            raise ValueError('Boot stat distribution is not available')
+        else:
+            df = pd.concat([self.model.design_sal_labels_]*1000)
+            df['boot_stat'] = self.boot_stat_dist[:, :, lv_idx].flatten()
+            mapping = {0: 'Pos. cond.', 1: 'Neg. cond.'}
+            df['within'] = [mapping[c] for c in df['within']]
+            mapping = {'Cov. 1': 'Pos. cov.', 'Cov. 2': 'Neg. cov.'}
+            df['covariate'] = [mapping[c] for c in df['covariate']]
+            return df
     def flip_signs(self, lv_idx=None):
         """
         Flips the signs of one or more latent variables, to aid with interpretation.
@@ -221,6 +246,8 @@ class PLSC():
 
         """
         self.model.flip_signs(lv_idx)
+        if self.boot_stat_dist is not None:
+            self.boot_stat_dist[..., lv_idx] *= -1
     def permute(self, n_perm=5000, store_null_dist=True, n_jobs=1, print_prog=True):
         """
         Perform permutation testing to assess the significance of the latent variables. p values become available after running this method through the :attr:`model.pvals_` attribute.
@@ -254,7 +281,7 @@ class PLSC():
                                             n_jobs=n_jobs,
                                             print_prog=print_prog,
                                             return_null_dist=store_null_dist)
-    def bootstrap(self, n_boot=5000, confint_level=0.95, alignment_method='rotate-design-sals', return_boot_stat_dist=False, n_jobs=1, print_prog=True):
+    def bootstrap(self, n_boot=5000, confint_level=0.95, alignment_method='rotate-design-sals', store_boot_stat_dist=True, n_jobs=1, print_prog=True):
         """
         Perform (stratified) bootstrap resampling to assess the reliability of the data saliences.
 
@@ -289,12 +316,12 @@ class PLSC():
         >>> res.bootstrap(1000, n_jobs=-1)
         >>> print(res.model.boot_stat_ci[..., 0]) # Print CI of boot_stat for first LV
         """
-        self.model.bootstrap(n_boot=n_boot,
-                             confint_level=confint_level,
-                             alignment_method=alignment_method,
-                             return_boot_stat_dist=return_boot_stat_dist,
-                             n_jobs=n_jobs,
-                             print_prog=print_prog)
+        self.boot_stat_dist = self.model.bootstrap(n_boot=n_boot,
+                                                   confint_level=confint_level,
+                                                   alignment_method=alignment_method,
+                                                   return_boot_stat_dist=store_boot_stat_dist,
+                                                   n_jobs=n_jobs,
+                                                   print_prog=print_prog)
     def brain_sals_to_mne(self, lv_idx, which='saliences'):
         _check_str_arg('which', which,
                        ['saliences', 'z-scores'])
@@ -666,16 +693,13 @@ class PLSC():
                 df['cluster_idx'] = curr_cluster_idx
                 curr_cluster = lv_clusters[curr_cluster_idx]
                 # Take average within cluster
-                df['cluster_mean'] = self.model.data_[:, curr_cluster['idx']].mean(axis=1)
+                cluster_idx = curr_cluster['idx']
+                df['cluster_mean'] = self.model.data_[:, cluster_idx].mean(axis=1)
+                # Get score within peak
+                df['cluster_score'] = self.model.data_[:, cluster_idx] @ self.model.data_sals_[cluster_idx, curr_lv_idx]
                 # Get data at cluster peak
                 df['cluster_peak'] = self.model.data_[:, curr_cluster['peak_flat']]
                 dfs.append(df)
-        # Remove not-applicable columns based on grouping
-        if self.grouping in ['within', 'neither']:
-            del df['between']
-        if self.grouping in ['between', 'neither']:
-            del df['within']
-            # del df['participant'] # Doesn't hurt to keep
         return pd.concat(dfs)
         
     def plot_scree(self, which='pct-variance', null_percentile=95, ax=None):
@@ -782,11 +806,11 @@ class PLSC():
                 which = 'saliences'
         if which == 'z-scores':
             data = self.model.data_sals_z_[:, lv_idx]
-            label = 'z score'
+            label = 'Brain salience z score'
             avg_label = 'Mean z score'
         elif which == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
-            label = 'Salience'
+            label = 'Brain salience'
             avg_label = 'Mean salience'
         data = data.reshape(self.template.shape)
         if self.template.domain == 'time-freq':

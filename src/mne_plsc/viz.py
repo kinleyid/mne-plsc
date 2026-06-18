@@ -190,7 +190,7 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     ax.set_ylim((ylim[0], 1.6*ylim[1]))
     # Show sensor legend
     pos, outlines = mne.viz.evoked._get_pos_outlines(
-        info, picks=range(len(info['chs'])), sphere=None)
+        info, picks=range(len(info['chs'])), sphere='auto')
     _plot_legend(pos,
                  colors=spatial_cols,
                  axis=ax,
@@ -409,9 +409,9 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
     f, ax = _get_ax(ax)
     # Get colorbar labels
     if cluster_info['which'] == 'saliences':
-        which = 'salience'
+        which = 'brain salience'
     elif cluster_info['which'] == 'z-scores':
-        which = 'z score'
+        which = 'brain salience z score'
     # set_trace()
     if highlight == 'peak':
         if template.domain == 'time':
@@ -444,6 +444,7 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
                                      pos=template.info,
                                      axes=ax,
                                      mask=spatial_mask,
+                                     sphere='auto',
                                      show=False)
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
@@ -494,9 +495,9 @@ def plot_cluster_butterfly(data, template, cluster, which, ythresh, highlight, a
         raise ValueError('Butterfly plot not possible for datatype %s' % template.datatype)
     # Determine how to label data
     if which == 'saliences':
-        ylabel = 'Salience'
+        ylabel = 'Brain salience'
     elif which == 'z-scores':
-        ylabel = 'z score'
+        ylabel = 'Brain salience z score'
     # Add highlighting first
     if highlight == 'extent':
         handle = plot_cluster_extent(xdata, cluster, ax)
@@ -526,9 +527,9 @@ def plot_cluster_raster_data(data, template, cluster, which, highlight, ax):
     masked = np.ma.MaskedArray(data=data, mask=~cluster['mask'])
     ydim, xdim = template.dimnames[-2:]
     if which == 'saliences':
-        data_desc = 'salience'
+        data_desc = 'brain salience'
     elif which == 'z-scores':
-        data_desc = 'z score'
+        data_desc = 'brain salience z score'
     else:
         raise ValueError(which)
     if template.domain == 'time-freq':
