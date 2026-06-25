@@ -214,7 +214,7 @@ from typing import Literal
 
 OBS_LEVEL = Literal['participant', 'condition', 'cond', 'within', 'trial']
 
-def standardize_input(data, obs_level, between, within, participant, covariates, template, metadata_list):
+def standardize_input(data, obs_level, between, within, participant, template, metadata_list, covariates=None):
     """
     Convert MNE data objects to a (n_obs, n_features) matrix and a label DataFrame.
 

@@ -140,9 +140,11 @@ def boot_stat_barplot(df, boot_stat, grouping, with_ci=False, ax=None):
             ax = _pivot_and_plot(df, index=pivot_index, columns='covariate', ax=ax)
             ax.get_legend().set_title(None)
             # x ticks are not meaningful
+            '''
             ax.tick_params(axis='x',
                            bottom=False,
                            labelbottom=False)
+            '''
             ax.set_ylabel('Correlation with brain score')
     elif boot_stat in ['condwise-scores', 'condwise-scores-centred']:
         if grouping == 'both':
@@ -438,12 +440,17 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
         # spatial_data = data[:, *peak_coords]
         spatial_data = data[peak_idx]
     if template.space == 'sensor':
-        # Highlight all sensors that are ever in the cluster
-        spatial_mask = cluster['mask'].sum(axis=-1) > 0
+        if highlight == 'extent':
+            # Highlight all sensors that are ever in the cluster
+            spatial_highlight = cluster['mask'].sum(axis=-1) > 0
+        elif highlight == 'peak':
+            # Highlight peak sensor
+            spatial_highlight = np.array([False]*template.info['nchan'])
+            spatial_highlight[cluster['peak_coords'][0]] = True
         im, _ = mne.viz.plot_topomap(data=spatial_data,
                                      pos=template.info,
                                      axes=ax,
-                                     mask=spatial_mask,
+                                     mask=spatial_highlight,
                                      sphere='auto',
                                      show=False)
         # Colorbar

@@ -100,6 +100,8 @@ def fit_mc(data,
            participant=None,
            source_domain=None,
            source_freqs=None,
+           metadata_list=None,
+           baseline=None,
            effects='all',
            boot_stat='condwise-scores-centred',
            svd_method='lapack',
@@ -141,11 +143,20 @@ def fit_mc(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    datamat, labels, modeled = utils.standardize_input(data, obs_level, between, within, participant, template)
+    # datamat, labels, modeled = utils.standardize_input(data, obs_level, between, within, participant, template)
+    datamat, labels, modeled = utils.standardize_input(
+        data=data,
+        obs_level=obs_level,
+        between=between,
+        within=within,
+        participant=participant,
+        template=template,
+        metadata_list=metadata_list)
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state)
-    model.fit(datamat, labels, modeled)
+    model._mean_center = False
+    model.fit(datamat, labels, modeled, baseline=baseline)
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
 
