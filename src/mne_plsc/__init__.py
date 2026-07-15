@@ -101,9 +101,10 @@ def fit_mc(data,
            source_domain=None,
            source_freqs=None,
            metadata_list=None,
-           intercept=False,
+           include_intercept=False,
+           test_intercept=False,
            effects='all',
-           boot_stat='condwise-scores-centred',
+           boot_stat=None,
            svd_method='lapack',
            random_state=None):
     """
@@ -155,7 +156,8 @@ def fit_mc(data,
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state,
-                       intercept=intercept)
+                       include_intercept=include_intercept,
+                       test_intercept=test_intercept)
     model.fit(datamat, labels, modeled)
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
