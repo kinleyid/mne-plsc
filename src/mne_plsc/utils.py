@@ -434,14 +434,14 @@ def standardize_input(data, obs_level, between, within, participant, template, m
         labels = labels.drop(columns=labels.columns[0])
     
     # Get indicator of which factors stratify the data
-    modeled = []
+    stratify = []
     for colname in labels.columns:
         if colname in ['between', 'within']:
-            modeled.append(True)
+            stratify.append(True)
         else:
-            modeled.append(False)
+            stratify.append(False)
     
-    out = (datamat, labels, modeled)
+    out = (datamat, labels, stratify)
     if covariates is not None:
         out += (covariate_table,)
     

@@ -74,7 +74,7 @@ def fit_beh(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    datamat, labels, modeled, covariates = utils.standardize_input(
+    datamat, labels, stratify, covariates = utils.standardize_input(
         data=data,
         obs_level=obs_level,
         between=between,
@@ -88,7 +88,7 @@ def fit_beh(data,
                         random_state=random_state)
     model.fit(data=datamat,
               labels=labels,
-              modeled=modeled,
+              stratify=stratify,
               covariates=covariates)
     grouping = utils.get_grouping(between, within)
     return PLSC(template, model, grouping)
@@ -144,8 +144,8 @@ def fit_mc(data,
     template = Template(data,
                         source_domain=source_domain,
                         source_freqs=source_freqs)
-    # datamat, labels, modeled = utils.standardize_input(data, obs_level, between, within, participant, template)
-    datamat, labels, modeled = utils.standardize_input(
+    # datamat, labels, stratify = utils.standardize_input(data, obs_level, between, within, participant, template)
+    datamat, labels, stratify = utils.standardize_input(
         data=data,
         obs_level=obs_level,
         between=between,
@@ -158,7 +158,7 @@ def fit_mc(data,
                        random_state=random_state,
                        include_intercept=include_intercept,
                        test_intercept=test_intercept)
-    model.fit(datamat, labels, modeled)
+    model.fit(datamat, labels, stratify)
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
 
