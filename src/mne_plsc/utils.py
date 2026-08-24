@@ -207,10 +207,6 @@ def determine_vertex_hemisphere(vert, template):
         hemi = 'rh'
     return hemi
 
-from typing import Literal
-
-OBS_LEVEL = Literal['participant', 'condition', 'cond', 'within', 'trial']
-
 def standardize_input(data, obs_level, between, within, participant, template, metadata_list, covariates=None):
     """
     Convert MNE data objects to a (n_obs, n_features) matrix and a label DataFrame.
@@ -354,10 +350,9 @@ def standardize_input(data, obs_level, between, within, participant, template, m
                 f"obs_level='condition': 'within' must have length "
                 f"n_obs={n_obs}, got {len(within)}."
             )
-        if between is not None and len(between) != len(np.unique(participant)):
+        if len(between) != n_obs:
             raise ValueError(
-                f"obs_level='condition': 'between' must have one entry per unique "
-                f"participant ({len(np.unique(participant))}), got {len(between)}."
+                f"'within' must have length n_obs={n_obs}, got {len(within)}."
             )
         if covariates is not None and len(covariates) != n_obs:
             raise ValueError(

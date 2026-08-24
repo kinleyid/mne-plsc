@@ -329,12 +329,12 @@ class PLSC():
         >>> res.bootstrap(1000, n_jobs=-1)
         >>> print(res.model.boot_stat_ci[..., 0]) # Print CI of boot_stat for first LV
         """
-        self.boot_stat_dist = self.model.bootstrap(n_boot=n_boot,
-                                                   confint_level=confint_level,
-                                                   alignment_method=alignment_method,
-                                                   return_boot_stat_dist=store_boot_stat_dist,
-                                                   n_jobs=n_jobs,
-                                                   print_prog=print_prog)
+        self.model.bootstrap(n_boot=n_boot,
+                             confint_level=confint_level,
+                             alignment_method=alignment_method,
+                             return_boot_stat_dist=store_boot_stat_dist,
+                             n_jobs=n_jobs,
+                             print_prog=print_prog)
     def brain_sals_to_mne(self, lv_idx, which='saliences'):
         _check_str_arg('which', which,
                        ['saliences', 'z-scores'])
