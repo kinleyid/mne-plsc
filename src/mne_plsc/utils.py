@@ -350,7 +350,7 @@ def standardize_input(data, obs_level, between, within, participant, template, m
                 f"obs_level='condition': 'within' must have length "
                 f"n_obs={n_obs}, got {len(within)}."
             )
-        if len(between) != n_obs:
+        if between is not None and len(between) != n_obs:
             raise ValueError(
                 f"'within' must have length n_obs={n_obs}, got {len(within)}."
             )
