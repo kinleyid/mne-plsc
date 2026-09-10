@@ -256,7 +256,7 @@ def standardize_input(data, obs_level, between, within, participant, template, m
             f"'trial'; got {obs_level!r}."
         )
 
-    # MNE object(s) to data matrix, (n. obs × n. features)
+    # MNE object(s) to data matrix, (n. obs, n. features)
     if template.space == 'source':
         get_data = lambda x: x.data
     else:
@@ -361,8 +361,9 @@ def standardize_input(data, obs_level, between, within, participant, template, m
             )
         
         if between is not None:
-            between_map = dict(zip(np.unique(participant), between))
-            label_dict['between'] = np.array([between_map[p] for p in participant])
+            label_dict['between'] = between
+            # between_map = dict(zip(np.unique(participant), between))
+            # label_dict['between'] = np.array([between_map[p] for p in participant])
         label_dict['participant'] = participant
         label_dict['within'] = within
 

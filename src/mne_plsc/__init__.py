@@ -329,12 +329,12 @@ class PLSC():
         >>> res.bootstrap(1000, n_jobs=-1)
         >>> print(res.model.boot_stat_ci[..., 0]) # Print CI of boot_stat for first LV
         """
-        self.model.bootstrap(n_boot=n_boot,
-                             confint_level=confint_level,
-                             alignment_method=alignment_method,
-                             return_boot_stat_dist=store_boot_stat_dist,
-                             n_jobs=n_jobs,
-                             print_prog=print_prog)
+        self.boot_stat_dist = self.model.bootstrap(n_boot=n_boot,
+                                                   confint_level=confint_level,
+                                                   alignment_method=alignment_method,
+                                                   return_boot_stat_dist=store_boot_stat_dist,
+                                                   n_jobs=n_jobs,
+                                                   print_prog=print_prog)
     def brain_sals_to_mne(self, lv_idx, which='saliences'):
         _check_str_arg('which', which,
                        ['saliences', 'z-scores'])
@@ -767,7 +767,7 @@ class PLSC():
         df = self.model.get_scores_frame(lv_idx)
         f, ax = viz.score_scatterplot(df, self.grouping, ax=ax)
         return f, ax
-    def plot_boot_stat(self, lv_idx, with_ci=True, ax=None):
+    def plot_boot_stat(self, lv_idx, ax=None):
         """
         Visualize :attr:`model.boot_stat` with a barplot.
 
@@ -775,8 +775,6 @@ class PLSC():
         ----------
         lv_idx : int
             Index of latent variable pair for which the plot should be generated.
-        with_ci : bool, optional
-            Specifies whether to show confidence interval error bars, if bootstrapping has been done. Ignored if bootstrapping has not been done. Default is ``True``.
         ax : instance of Matplotlib Axes, optional
             Axes to plot to. The default is ``None``, which generates a new figure.
 
@@ -785,12 +783,14 @@ class PLSC():
         f, ax
             Figure and axes containing plot.
         """        
-        df = self.model.get_boot_stat_frame(lv_idx)
-        out = viz.boot_stat_barplot(df=df,
-                                    boot_stat=self.model.boot_stat,
-                                    grouping=self.grouping,
-                                    with_ci=self.model._boot_done and with_ci,
-                                    ax=ax)
+        df = self.model.get_boot_stat_frame(lv_idx, ci='len')
+        stratifying = self.model.design_sal_labels_.columns
+        boot_stat_labels = {
+            'score-covariate-corr': 'Brain score vs covariate correlation',
+            'condwise-scores': 'Brain score',
+            'condwise-scores-centred': 'Brain score'}
+        ylabel = boot_stat_labels[self.model.boot_stat]
+        out = pyplsc.viz.plot_boot_stat(df, stratifying, ylabel=ylabel, ax=ax)
         return out
     def plot_brain_sals(self, lv_idx, which='auto', ax=None):
         """
@@ -887,7 +887,7 @@ class PLSC():
                                                   ax=ax)
         return f, ax
             
-    def plot_lv(self, lv_idx, which='auto', with_ci=True):
+    def plot_lv(self, lv_idx, which='auto'):
         """
         Create a two-panel summary plot of a latent variable pair. The left panel displays the value of :attr:`boot_stat` while the right panel displays the brain saliences.
 
@@ -897,8 +897,6 @@ class PLSC():
             Index of latent variable pair(s) for which the plot should be generated.
         which : str, optional
             Specifies whether raw saliences (``'saliences'``) or z scores (``'z-scores'``) should be plotted. The default is `'auto'`, which defaults to z-scores if they are available.
-        with_ci : bool, optional
-            Controls confidence interval plotting. See :meth:`plot_boot_stat`.
 
         Returns
         -------
@@ -910,7 +908,7 @@ class PLSC():
                              width_ratios=[3, 2],
                              layout='constrained')
         self.plot_brain_sals(lv_idx, ax=ax[0], which=which)
-        self.plot_boot_stat(lv_idx, ax=ax[1], with_ci=with_ci)
+        self.plot_boot_stat(lv_idx, ax=ax[1])
         return f, ax
     def plot_cluster_sizes(self, lv_idx, size_measure='pct-strong', n_clust=None, ax=None):
         """
