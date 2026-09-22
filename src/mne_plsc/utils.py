@@ -304,11 +304,23 @@ def standardize_input(data, obs_level, design_matrix, between, within, participa
 
     # Build labels dataframe and get covariates
     label_dict = {}
-    if design_matrix is None:
-        input_dict = {'between': between, 'participant': participant, 'within': within}
-    else:
-        input_dict = {k: design_matrix[k] if k in design_matrix else None for k in ['between', 'participant', 'within']}
-    input_dict['covariates'] = covariates
+    input_dict = {'between': between, 'participant': participant, 'within': within, 'covariates': covariates}
+    if design_matrix is not None:
+        tmp = input_dict.copy()
+        for level in input_dict:
+            colname = input_dict[level]
+            if colname is not None:
+                # For if design matrix uses idiosyncratic column names
+                tmp[level] = design_matrix[colname]
+            elif level in design_matrix:
+                # For if design matrix explicitly says "within" etc.
+                tmp[level] = design_matrix[level]
+        input_dict = tmp
+
+    between = input_dict['between']
+    participant = input_dict['participant']
+    within = input_dict['within']
+    covariates = input_dict['covariates']
     
     def enforce_n_labels(input_dict, levels=None):
         if levels == None:

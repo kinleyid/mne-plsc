@@ -69,20 +69,11 @@ def run_result_methods(result):
     run_result_plots(result)
     result.brain_sals_to_mne(0)
 
-def test_mc_both(sample_data):
+def test_mc(sample_data):
     data, _, between, within, participant = sample_data
     result = mne_plsc.fit_mc(data=data,
                              obs_level='condition',
                                  between=between,
-                                 within=within,
-                                 participant=participant,
-                                 random_state=123)
-    run_result_methods(result)
-
-def test_mc_within(sample_data):
-    data, _, between, within, participant = sample_data
-    result = mne_plsc.fit_mc(data=data,
-                             obs_level='condition',
                                  within=within,
                                  participant=participant,
                                  random_state=123)
