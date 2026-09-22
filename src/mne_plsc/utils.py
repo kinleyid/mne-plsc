@@ -1,6 +1,4 @@
 
-import mne
-import mne_plsc
 import numpy as np
 import pandas as pd
 
@@ -28,7 +26,7 @@ def get_epoch_labels(epochs):
     labels = [reverse_id[n] for n in epochs.events[:, 2]]
     return labels
 
-def average_epochs_by_label(epochs_list, between=None):
+def average_epochs_by_label(epochs_list, between=None, labels=None):
     """
     From a list of epoch data, get a list of average data, one per epoch label per participant, and a design matrix.
 
@@ -38,6 +36,8 @@ def average_epochs_by_label(epochs_list, between=None):
         MNE data object containing epoch data.
     between : iterable
         Iterable of between-participants condition labels corresponding to each element in ``epochs_list``.
+    labels : iterable of ``str``
+        Iterable containing specific labels for which to compute averages. If unspecified, all labels are used.
 
     Returns
     -------
@@ -58,8 +58,12 @@ def average_epochs_by_label(epochs_list, between=None):
     data_list = []
     rows = []
     for ptpt_idx, ptpt_data in enumerate(epochs_list):
-        labels = set(get_epoch_labels(ptpt_data))
-        for label in labels:
+        if labels is None:
+            # Get all labels
+            epoch_labels = set(get_epoch_labels(ptpt_data))
+        else:
+            epoch_labels = labels
+        for label in epoch_labels:
             avg = ptpt_data[label].average()
             row = {'within': label, 'participant': ptpt_idx}
             if between is not None:
@@ -207,7 +211,7 @@ def determine_vertex_hemisphere(vert, template):
         hemi = 'rh'
     return hemi
 
-def standardize_input(data, obs_level, between, within, participant, template, metadata_list, covariates=None):
+def standardize_input(data, obs_level, design_matrix, between, within, participant, template, metadata_list, covariates=None):
     """
     Convert MNE data objects to a (n_obs, n_features) matrix and a label DataFrame.
 
@@ -222,6 +226,8 @@ def standardize_input(data, obs_level, between, within, participant, template, m
                                     identity is inferred from list position.
     obs_level : {'participant', ''within'/condition'/'cond', 'trial'}
         Observation level, i.e., granularity of each row in the output matrix.
+    design_matrix : pd.DataFrame
+        Must contain only columns "between", "within", and/or "participant"
     between : array-like or None
         Participant-level group labels, length == n_participants.
         At obs_level='participant', length == n_obs.
@@ -263,6 +269,7 @@ def standardize_input(data, obs_level, between, within, participant, template, m
         get_data = lambda x: x.get_data()
     if template.space == 'source' and template.domain == 'time-freq':
         # List of lists; outer list is observations, inner list is frequencies
+        # Observations might be trials, participants, or conditions
         all_obs = []
         for curr_obs in data:
             array = np.stack([get_data(stc) for stc in curr_obs])
@@ -285,7 +292,7 @@ def standardize_input(data, obs_level, between, within, participant, template, m
         # Single-subject analysis; obs level has to be trial
         if obs_level != 'trial':
             raise ValueError(
-                "If only one object is provided (not a list), obs_level must be 'trial'"
+                "If only one MNE object is provided obs_level must be 'trial'"
             )
         datamat = np.stack([epoch.flatten() for epoch in get_data(data)])
 
@@ -295,120 +302,73 @@ def standardize_input(data, obs_level, between, within, participant, template, m
         )
     n_obs = len(datamat)
 
-    # Data labels to array
-    # between     = np.asarray(between)     if between     is not None else None
-    # within      = np.asarray(within)      if within      is not None else None
-    # participant = np.asarray(participant) if participant is not None else None
-
-    # Build data labels dataframe
-    label_dict: dict = {}
+    # Build labels dataframe and get covariates
+    label_dict = {}
+    if design_matrix is None:
+        input_dict = {'between': between, 'participant': participant, 'within': within}
+    else:
+        input_dict = {k: design_matrix[k] if k in design_matrix else None for k in ['between', 'participant', 'within']}
+    input_dict['covariates'] = covariates
+    
+    def enforce_n_labels(input_dict, levels=None):
+        if levels == None:
+            levels = list(input_dict)
+        for level in levels:
+            labels = input_dict[level]
+            if labels is not None:
+                n_labels = len(labels)
+                if n_labels != n_obs:
+                    raise ValueError(f"obs_level='participant': '{level}' must have one entry per observation (n_obs={n_obs}), got {n_labels}.")
+    
     if obs_level == 'participant':
         if within is not None:
-            raise ValueError(
-                "'within' was provided. There can be no within-participants conditions when obs_level='participant'"
-            )
-        if between is not None and len(between) != n_obs:
-            raise ValueError(
-                f"obs_level='participant': 'between' must have one entry per "
-                f"observation (n_obs={n_obs}), got {len(between)}."
-            )
-        if participant is not None and len(participant) != n_obs:
-            raise ValueError(
-                f"obs_level='participant': 'participant' must have length "
-                f"n_obs={n_obs}, got {len(participant)}."
-            )
-        if covariates is not None and len(covariates) != n_obs:
-            raise ValueError(
-                f"obs_level='participant': 'covariates' must have length "
-                f"n_obs={n_obs}, got {len(covariates)}."
-            )
-        if between is not None:
-            label_dict['between'] = between
-        if participant is None:
-            participant = np.arange(n_obs)
-        label_dict['participant'] = participant
+            raise ValueError("'within' was provided. There can be no within-participants conditions when obs_level='participant'")
+        enforce_n_labels(input_dict)
+        if input_dict['between'] is not None:
+            label_dict['between'] = input_dict['between']
+        if input_dict['participant'] is None:
+            input_dict['participant'] = np.arange(n_obs)
+        label_dict['participant'] = input_dict['participant']
         if covariates is not None:
             covariate_table = covariates
             
     elif obs_level == 'condition':
-        if participant is None:
-            raise ValueError(
-                "obs_level='condition' requires 'participant': a per-observation "
-                "array of participant IDs (length == n_obs)."
-            )
-        if len(participant) != n_obs:
-            raise ValueError(
-                f"obs_level='condition': 'participant' must have length "
-                f"n_obs={n_obs}, got {len(participant)}."
-            )
-        if within is None:
-            raise ValueError(
-                "obs_level='condition' requires within-participant condition labels, specified via 'within' argument."
-            )
-        if len(within) != n_obs:
-            raise ValueError(
-                f"obs_level='condition': 'within' must have length "
-                f"n_obs={n_obs}, got {len(within)}."
-            )
-        if between is not None and len(between) != n_obs:
-            raise ValueError(
-                f"'within' must have length n_obs={n_obs}, got {len(within)}."
-            )
-        if covariates is not None and len(covariates) != n_obs:
-            raise ValueError(
-                f"'covariates' must have length "
-                f"n_obs={n_obs}, got {len(covariates)}."
-            )
-        
-        if between is not None:
-            label_dict['between'] = between
-            # between_map = dict(zip(np.unique(participant), between))
-            # label_dict['between'] = np.array([between_map[p] for p in participant])
-        label_dict['participant'] = participant
-        label_dict['within'] = within
+        for k in ['participant', 'within']:
+            if input_dict[k] is None:
+                raise ValueError(f"obs_level='condition' requires the '{k}' argument to be specified.")
+        enforce_n_labels(input_dict)
+        if input_dict['between'] is not None:
+            label_dict['between'] = input_dict['between']
+        label_dict['participant'] = input_dict['participant']
+        label_dict['within'] = input_dict['within']
 
     elif obs_level == 'trial':
-        if participant is not None:
-            raise ValueError(
-                "obs_level='trial': 'participant' is inferred from the data list "
-                "and should not be provided explicitly."
-            )
-        if within is not None and not isinstance(within, str):
-            raise ValueError(
-                "obs_level='trial': 'within' must be specified as a string"
-            )
-        if between is not None and len(between) != len(data):
-            raise ValueError(
-                f"obs_level='trial': 'between' must have one entry per participant "
-                f"(len(data)={len(data)}), got {len(between)}."
-            )
-        if covariates is not None:
-            cov_error = False
-            if isinstance(covariates, list):
-                if not all(isinstance(c, str) for c in covariates):
-                    cov_error = True
-            elif not isinstance(covariates, str):
-                cov_error = True
-            if cov_error:
-                raise ValueError(
-                    "obs_level='trial': 'covariates' must be specified as a string"
-                )
-                
-        # Infer participant IDs from list structure
-        if isinstance(data, list):
-            n_ptpt = len(data)
-            trials_per_participant = [get_data(item).shape[0] for item in data]
+        # Set participnat
+        if input_dict['participant'] is not None:
+            raise ValueError("obs_level='trial': 'participant' is inferred from the data list and should not be provided explicitly.")
         else:
-            n_ptpt = 1
-            trials_per_participant = [get_data(data).shape[0]]
-        ptpt_ids = np.repeat(np.arange(n_ptpt), trials_per_participant)
-        if between is not None:
-            between_map = dict(zip(np.arange(len(data)), between))
-            label_dict['between'] = np.array([between_map[p] for p in ptpt_ids])
-        label_dict['participant'] = ptpt_ids
-        label_dict['trial'] = np.concat([np.arange(n_trials) for n_trials in trials_per_participant])
-        
-        if within is not None or covariates is not None:
+            # Infer participant IDs from list structure
+            if not isinstance(data, list):
+                data = [data]
+            n_ptpt = len(data)
+            trials_per_participant = [get_data(item).shape[0] for item in data] # Wasteful
+            ptpt_ids = np.repeat(np.arange(n_ptpt), trials_per_participant)
+            label_dict['participant'] = ptpt_ids
+        # Set between
+        if input_dict['between'] is not None:
+            if len(input_dict['between']) != len(data): # Note len data (one per participant) not len datamat (one per trial)
+                raise ValueError(
+                    f"obs_level='trial': 'between' must have one entry per participant "
+                    f"(len(data)={len(data)}), got {len(between)}."
+                )
+            else:
+                between_map = dict(zip(np.arange(n_ptpt), input_dict['between']))
+                label_dict['between'] = np.array([between_map[p] for p in ptpt_ids])
+
+        # Get metadata list
+        within_from_metadata = isinstance(input_dict['within'], str)
+        covs_from_metadata = input_dict['covariates'] is not None and (isinstance(input_dict['covariates'], str) or any([isinstance(c, str) for c in input_dict['covariates']]))
+        if within_from_metadata or covs_from_metadata:
             # within labels and covariates will be extracted from metadata
             # First generate metadata list
             if metadata_list is None:
@@ -416,11 +376,22 @@ def standardize_input(data, obs_level, between, within, participant, template, m
                     raise ValueError('Not all data objects contain metadata')
                 else:
                     metadata_list = [item.metadata for item in data]
-        # Extract columns of interest
-        if within is not None:
-            label_dict['within'] = pd.concat([md[within] for md in metadata_list])
-        if covariates is not None:
-            covariate_table = pd.concat([md[covariates] for md in metadata_list])
+            
+        # Set within
+        if input_dict['within'] is not None:
+            if within_from_metadata:
+                label_dict['within'] = pd.concat([md[input_dict['within']] for md in metadata_list])
+            else:
+                label_dict['within'] = input_dict['within']
+        
+        if input_dict['covariates'] is not None:
+            if covs_from_metadata:
+                covariate_table = pd.concat([md[input_dict['covariates']] for md in metadata_list])
+            else:
+                covariate_table = input_dict['covariates']
+                
+        # Set trial labels
+        label_dict['trial'] = np.concat([np.arange(n_trials) for n_trials in trials_per_participant])
 
     # Enforce column order
     labels = pd.DataFrame(label_dict)

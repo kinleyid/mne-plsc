@@ -1,11 +1,8 @@
 
-import mne
 import pyplsc
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from matplotlib import gridspec
-from mne.stats.cluster_level import _find_clusters
 import os, pathlib, lzma, pickle
 
 from . import utils, viz
@@ -24,6 +21,7 @@ def _check_str_arg(argname, provided, allowed):
 def fit_beh(data,
             obs_level,
             covariates,
+            design_matrix=None,
             between=None,
             participant=None,
             within=None,
@@ -77,6 +75,7 @@ def fit_beh(data,
     datamat, labels, stratify, covariates = utils.standardize_input(
         data=data,
         obs_level=obs_level,
+        design_matrix=design_matrix,
         between=between,
         within=within,
         participant=participant,
@@ -95,14 +94,14 @@ def fit_beh(data,
 
 def fit_mc(data,
            obs_level,
+           design_matrix=None,
            between=None,
            within=None,
            participant=None,
            source_domain=None,
            source_freqs=None,
            metadata_list=None,
-           include_intercept=False,
-           test_intercept=False,
+           intercept=False,
            effects='all',
            boot_stat=None,
            svd_method='lapack',
@@ -148,6 +147,7 @@ def fit_mc(data,
     datamat, labels, stratify = utils.standardize_input(
         data=data,
         obs_level=obs_level,
+        design_matrix=design_matrix,
         between=between,
         within=within,
         participant=participant,
@@ -156,11 +156,78 @@ def fit_mc(data,
     model = pyplsc.BDA(boot_stat=boot_stat,
                        svd_method=svd_method,
                        random_state=random_state,
-                       include_intercept=include_intercept,
-                       test_intercept=test_intercept)
+                       intercept=intercept)
     model.fit(datamat, labels, stratify)
     grouping = utils.get_grouping(between, within)
     return MCPLSC(template, model, grouping)
+
+def fit_nrm(data,
+            obs_level,
+            contrasts,
+            design_matrix=None,
+            between=None,
+            within=None,
+            participant=None,
+            source_domain=None,
+            source_freqs=None,
+            metadata_list=None,
+            intercept=False,
+            boot_stat=None,
+            svd_method='lapack',
+            random_state=None):
+    """
+    Fit mean-centred PLS model.
+
+    Parameters
+    ----------
+    data : MNE object or iterable of MNE objects
+        The M/EEG data to analyze. For single-participant analysis, this should be an instance of one of MNE's data containers for epoched data (e.g., :class:`mne.Epochs`) and each observation will be a single trial. For group-level analysis, this should be an iterable of MNE data containers for averages over epochs (e.g., :class:`mne.Evoked`), and each observation will be a participant's average in a within-participants condition. For source-space analysis, data will always be a list of source time courses.
+    between : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of between-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    within : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of within-participants conditions, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``.
+    participant : iterable | ``str``, optional
+        An iterable containing indicators (integer or string labels) of participant identity, or a string specifying which column in ``design`` contains such an indicator. The default is ``None``. This is required only if there is a within-participants condition.
+    source_domain : ``str``, optional
+        If model is fit to source-space data, this argument specifies the domain of the source space. Must be one of:
+        
+        - ``'time'`` For output of :func:`mne.minimum_norm.apply_inverse`, :func:`mne.beamformer.apply_lcmv`, etc. This is assumed by default.
+        - ``'freq'`` For output of :func:`mne.minimum_norm.apply_inverse_cov`, :func:`mne.beamformer.apply_dics`, etc.
+        - ``'time-freq'`` For output of :func:`mne.minimum_norm.apply_dics_tfr_epochs, :func:`mne.beamformer.apply_dics_tfr_epochs`, etc.
+    source_freqs : ``numpy.ndarray``, optional
+        If model is fit to source-space data and source domain is time or time-frequency, this argument specifies the frequencies in the source data.
+    boot_stat : ``str``, optional
+        Specifies which statistic should be computed on each bootstrap iteration. The default is ``'score-covariate-corr'``. See :class:`pyplsc.BDA` for details.
+    svd_method : ``str``, optional
+        The method of SVD decomposition. The default is ``'lapack'``. See :class:`pyplsc.BDA` for details.
+    random_state : ``int``, optional
+        Random state for seeding the model. The default is None.
+
+    Returns
+    -------
+    :class:`MCPLSC`
+        MCPLSC object fit to the data.
+    """
+    
+    template = Template(data,
+                        source_domain=source_domain,
+                        source_freqs=source_freqs)
+    # datamat, labels, stratify = utils.standardize_input(data, obs_level, between, within, participant, template)
+    datamat, labels, stratify = utils.standardize_input(
+        data=data,
+        obs_level=obs_level,
+        design_matrix=design_matrix,
+        between=between,
+        within=within,
+        participant=participant,
+        template=template,
+        metadata_list=metadata_list)
+    model = pyplsc.NRM(boot_stat=boot_stat,
+                       random_state=random_state,
+                       intercept=intercept)
+    model.fit(datamat, labels, stratify, contrasts)
+    grouping = utils.get_grouping(between, within)
+    return NRM(template, model, grouping)
 
 class PLSC():
     """
@@ -346,23 +413,28 @@ class PLSC():
         if self.template.space == 'sensor':
             info = self.template.info
             if self.template.domain == 'time':
-                out_obj = mne.EvokedArray(data=data,
-                                          info=info,
-                                          tmin=self.template.times[0])
+                from mne import EvokedArray
+                out_obj = EvokedArray(data=data,
+                                      info=info,
+                                      tmin=self.template.times[0])
             elif self.template.domain == 'freq':
-                out_obj = mne.time_frequency.SpectrumArray(data=data,
-                                                           info=info,
-                                                           freqs=self.template.freqs)
+                from mne.time_frequency import SpectrumArray
+                out_obj = SpectrumArray(data=data,
+                                        info=info,
+                                        freqs=self.template.freqs)
             elif self.template.domain == 'time-freq':
-                out_obj = mne.time_frequency.AverageTFRArray(data=data,
-                                                             info=info,
-                                                             times=self.template.times,
-                                                             freqs=self.template.freqs)
+                from mne.time_frequency import AverageTFRArray
+                out_obj = AverageTFRArray(data=data,
+                                          info=info,
+                                          times=self.template.times,
+                                          freqs=self.template.freqs)
         elif self.template.space == 'source':
             if self.template.source_type == 'surface':
-                class_constructor = mne.SourceEstimate
+                from mne import SourceEstimate
+                class_constructor = SourceEstimate
             elif self.template.source_type == 'volume':
-                class_constructor = mne.VolSourceEstimate
+                from mne import VolSourceEstimate
+                class_constructor = VolSourceEstimate
             kwargs = dict(vertices=self.template.vertices,
                           tmin=self.template.times[0],
                           tstep=self.template.tstep)
@@ -440,9 +512,11 @@ class PLSC():
                     if len(ch_types) > 1:
                         raise ValueError('Multiple channel types present in data: %s. Adjacency could not be computed' % ch_types)
                     ch_type = ch_types.pop() # One-element set
-                    spatial_adj, _ = mne.channels.find_ch_adjacency(self.template.info, ch_type)
+                    from mne.channels import find_ch_adjacency
+                    spatial_adj, _ = find_ch_adjacency(self.template.info, ch_type)
                 else:
-                    spatial_adj, _ = mne.channels.read_ch_adjacency(montage_name)
+                    from mne.channels import read_ch_adjacency
+                    spatial_adj, _ = read_ch_adjacency(montage_name)
         elif self.template.space == 'source':
             if self.template.src is None:
                 raise ValueError('Source space must be specified to compute spatial adjacency. See add_source_info()')
@@ -451,9 +525,11 @@ class PLSC():
                 n_vert = sum(len(ss['vertno']) for ss in self.template.src)
                 spatial_adj = np.ones((n_vert,)*2)
             else:
-                spatial_adj = mne.spatial_src_adjacency(self.template.src)
+                from mne import spatial_src_adjacency
+                spatial_adj = spatial_src_adjacency(self.template.src)
         dim_adjs = (spatial_adj,) + self.template.shape[1:]
-        self.template.adjacency = mne.stats.combine_adjacency(*dim_adjs)
+        from mne.stats import combine_adjacency
+        self.template.adjacency = combine_adjacency(*dim_adjs)
     def cluster(self, which='auto', threshold=None, signed='auto'):
         """
         Identify clusters of adjacent saliences above some threshold.
@@ -472,6 +548,7 @@ class PLSC():
         None
             None. Adds the attribute :attr:`clusters`.
         """
+        from mne.stats.cluster_level import _find_clusters
         _check_str_arg('which', which, ('auto', 'saliences', 'z-scores'))
         if 'adjacency' not in dir(self.template):
             raise ValueError('Adjacency must be added with .add_adjacency() before clustering can be done')
@@ -621,9 +698,11 @@ class PLSC():
                                         mask=~cluster['mask'])
             data = np.array(masked.mean(axis=1))
         if self.template.source_type == 'surface':
-            constructor = mne.SourceEstimate
+            from mne import SourceEstimate
+            constructor = SourceEstimate
         elif self.template.source_type == 'volume':
-            constructor = mne.VolSourceEstimate
+            from mne import VolSourceEstimate
+            constructor = VolSourceEstimate
         stc = constructor(data=data,
                           vertices=self.template.vertices,
                           tmin=tmin,
@@ -1281,9 +1360,12 @@ class MCPLSC(PLSC):
         loadings = self.model.data_sals_[:, lv_idx]
         hadamards = self.model.data_ * loadings
         if average:
-            hadamards = pyplsc.utils.get_groupwise_means(
-                data=hadamards,
-                group_idx=self.model.stratifier_)
+            hadamards = pyplsc.utils.stratified_average(self.model.data_,
+                                         self.model.label_mat_,
+                                         self.model.stratify_,
+                                         self.model.effects_)
+            if not self.model._include_intercept:
+                hadamards = pyplsc.utils.mean_center(hadamards)
         # Reshape
         hadamards = [h.reshape(self.template.shape) for h in hadamards]
         # Identify axes to average over
@@ -1433,3 +1515,23 @@ class Template():
         assert len(self.shape) == len(self.dimnames)
         self.size = np.prod(self.shape)
         self.ndim = len(self.dimnames)
+
+class NRM(PLSC):
+    """
+    Container for NRM models returned by :func:`fit_nrm`.
+    
+    Parameters
+    ----------
+    template : :class:`Template`
+        A template object used for clustering and plotting.
+    model : :class:`pyplsc.NRM`
+        A model that has been fit to some data.
+    grouping : ``str``
+        Specifies how data are stratified. Must be one of:
+            
+        - ``'between'``
+        - ``'within'``
+        - ``'both'``
+        - ``'neither'``
+    """
+    pass # Just for documentation

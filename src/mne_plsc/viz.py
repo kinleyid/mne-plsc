@@ -1,12 +1,7 @@
 
-import mne
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import gridspec, cm, colors, patches, ticker
-# import seaborn as sns
-from nilearn import image, plotting
-
-from mne.viz.evoked import _rgb, _plot_legend
 
 from . import utils
 
@@ -191,7 +186,8 @@ def channel_lineplot(x, ch_y, info, ax=None, xlabel=None, ylabel=None, ythresh=N
     ylim = ax.get_ylim()
     ax.set_ylim((ylim[0], 1.6*ylim[1]))
     # Show sensor legend
-    pos, outlines = mne.viz.evoked._get_pos_outlines(
+    from mne.viz.evoked import _get_pos_outlines, _plot_legend
+    pos, outlines = _get_pos_outlines(
         info, picks=range(len(info['chs'])), sphere='auto')
     _plot_legend(pos,
                  colors=spatial_cols,
@@ -298,6 +294,7 @@ def plot_raster(template, xdata, ydata, data, cmap='RdBu_r', vlim=None, ax=None)
     return im
 
 def get_spatial_colours(info):
+    from mne.viz.evoked import _rgb
     locs3d = np.array([ch['loc'][:3] for ch in info['chs']])
     x, y, z = locs3d.T
     return _rgb(x, y, z)
@@ -447,19 +444,22 @@ def plot_cluster_spatial(data, template, cluster, cluster_info, highlight, backe
             # Highlight peak sensor
             spatial_highlight = np.array([False]*template.info['nchan'])
             spatial_highlight[cluster['peak_coords'][0]] = True
-        im, _ = mne.viz.plot_topomap(data=spatial_data,
-                                     pos=template.info,
-                                     axes=ax,
-                                     mask=spatial_highlight,
-                                     sphere='auto',
-                                     show=False)
+        from mne.viz import plot_topomap
+        im, _ = plot_topomap(data=spatial_data,
+                             pos=template.info,
+                             axes=ax,
+                             mask=spatial_highlight,
+                             sphere='auto',
+                             show=False)
         # Colorbar
         cbar = ax.figure.colorbar(im, shrink=0.6)
         cbar.ax.set_ylabel(vlabel)
     elif template.datatype == 'vol-stc':
+        from nilearn import image, plotting
         spatial_data = spatial_data.reshape((-1, 1))
         # Create volume
-        stc = mne.VolSourceEstimate(
+        from mne import VolSourceEstimate
+        stc = VolSourceEstimate(
             data=spatial_data,
             vertices=template.vertices,
             tmin=0, tstep=1,
@@ -707,7 +707,8 @@ def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=No
         for idx, row in df.iterrows():
             curr_ax = ax.flat[idx]
             if margin == 'chan':
-                mne.viz.plot_topomap(
+                from mne.viz import plot_topomap
+                plot_topomap(
                     data=row['scores'],
                     pos=template.info,
                     vlim=(-vlim, vlim),
