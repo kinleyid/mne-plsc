@@ -341,6 +341,8 @@ def standardize_input(data, obs_level, design_matrix, between, within, participa
             label_dict['between'] = input_dict['between']
         label_dict['participant'] = input_dict['participant']
         label_dict['within'] = input_dict['within']
+        if covariates is not None:
+            covariate_table = covariates
 
     elif obs_level == 'trial':
         # Set participnat

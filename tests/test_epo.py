@@ -72,6 +72,7 @@ def run_result_methods(result):
 def test_mc_both(sample_data):
     data, _, between, within, participant = sample_data
     result = mne_plsc.fit_mc(data=data,
+                             obs_level='condition',
                                  between=between,
                                  within=within,
                                  participant=participant,
@@ -81,6 +82,7 @@ def test_mc_both(sample_data):
 def test_mc_within(sample_data):
     data, _, between, within, participant = sample_data
     result = mne_plsc.fit_mc(data=data,
+                             obs_level='condition',
                                  within=within,
                                  participant=participant,
                                  random_state=123)
@@ -90,6 +92,7 @@ def test_beh_args(sample_data):
     # Test different methods of providing data
     data, covariates, between, within, participant = sample_data
     mne_plsc.fit_beh(data=data,
+                     obs_level='participant',
                      covariates=covariates[:, 0],
                      random_state=123)
     design = pd.DataFrame(covariates,
@@ -98,13 +101,15 @@ def test_beh_args(sample_data):
     design['cond'] = within
     design['ptpt'] = participant
     mne_plsc.fit_beh(data=data,
-                     design=design,
+                     obs_level='condition',
+                     design_matrix=design,
                      covariates='cov1',
                      between='group',
                      within='cond',
                      participant='ptpt',
                      random_state=123)
     mne_plsc.fit_beh(data=data,
+                     obs_level='condition',
                      covariates=design['cov1'],
                      between=design['group'],
                      within=design['cond'],
@@ -114,45 +119,21 @@ def test_beh_args(sample_data):
 def test_mc_args(sample_data):
     # Test different methods of providing data
     data, covariates, between, within, participant = sample_data
-    design = pd.DataFrame(covariates,
-                          columns=['cov1', 'cov2'])
-    design['group'] = between
-    design['cond'] = within
-    design['ptpt'] = participant
+    design = pd.DataFrame({'between': between,
+                           'within': within,
+                           'participant': participant})
     mne_plsc.fit_mc(data=data,
-                    design=design,
-                    between='group',
-                    within='cond',
-                    participant='ptpt',
-                    random_state=123)
-    mne_plsc.fit_mc(data=data,
-                    between=design['group'],
-                    within=design['cond'],
-                    participant=design['ptpt'],
+                    obs_level='condition',
+                    design_matrix=design,
                     random_state=123)
 
-def test_beh_both(sample_data):
+def test_beh(sample_data):
     data, covariates, between, within, participant = sample_data
     result = mne_plsc.fit_beh(data=data,
+                              obs_level='condition',
                               covariates=covariates,
                               between=between,
                               within=within,
                               participant=participant,
-                              random_state=123)
-    run_result_methods(result)
-    
-def test_beh_within(sample_data):
-    data, covariates, between, within, participant = sample_data
-    result = mne_plsc.fit_beh(data=data,
-                              covariates=covariates,
-                              within=within,
-                              participant=participant,
-                              random_state=123)
-    run_result_methods(result)
-    
-def test_beh_neither(sample_data):
-    data, covariates, between, within, participant = sample_data
-    result = mne_plsc.fit_beh(data=data,
-                              covariates=covariates,
                               random_state=123)
     run_result_methods(result)
