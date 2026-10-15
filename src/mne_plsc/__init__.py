@@ -9,15 +9,6 @@ from . import utils, viz
 
 from pdb import set_trace
 
-class BadStrArgError(Exception):
-    def __init__(self, argname, provided, allowed):
-        self.message = '%s is not a valid value for "%s". Must be one of %s' % (provided, argname, allowed)
-        super().__init__(self.message)
-
-def _check_str_arg(argname, provided, allowed):
-    if provided not in allowed:
-        raise BadStrArgError(argname, provided, allowed)
-
 def fit_beh(data,
             obs_level,
             covariates,
@@ -158,7 +149,7 @@ def fit_mc(data,
                        random_state=random_state,
                        intercept=intercept)
     model.fit(datamat, labels, stratify)
-    grouping = utils.get_grouping(between, within)
+    grouping = utils.get_grouping(labels)
     return MCPLSC(template, model, grouping)
 
 def fit_nrm(data,
@@ -403,7 +394,7 @@ class PLSC():
                                                    n_jobs=n_jobs,
                                                    print_prog=print_prog)
     def brain_sals_to_mne(self, lv_idx, which='saliences'):
-        _check_str_arg('which', which,
+        utils._check_str_arg('which', which,
                        ['saliences', 'z-scores'])
         if which == 'saliences':
             data = self.model.data_sals_[:, lv_idx]
@@ -549,7 +540,7 @@ class PLSC():
             None. Adds the attribute :attr:`clusters`.
         """
         from mne.stats.cluster_level import _find_clusters
-        _check_str_arg('which', which, ('auto', 'saliences', 'z-scores'))
+        utils._check_str_arg('which', which, ('auto', 'saliences', 'z-scores'))
         if 'adjacency' not in dir(self.template):
             raise ValueError('Adjacency must be added with .add_adjacency() before clustering can be done')
         # Auto-determine which data to cluster
@@ -629,7 +620,7 @@ class PLSC():
     def _get_cluster(self, lv_idx, cluster_idx, return_data=True, which='auto'):
         if not self._clustering_done:
             raise ValueError('Clustering has not been performed')
-        _check_str_arg('which', which,
+        utils._check_str_arg('which', which,
                        ('auto', 'data', 'saliences', 'z-scores'))
         lv_clusters = self.clusters[lv_idx]
         info = lv_clusters['info']
@@ -731,7 +722,7 @@ class PLSC():
         """
         if not self._clustering_done:
             raise ValueError('Clustering has not been performed')
-        _check_str_arg('size_measure', size_measure,
+        utils._check_str_arg('size_measure', size_measure,
                        ('pct-strong', 'pct-total', 'absolute'))
         cluster_set = self.clusters[lv_idx]
         abs_sizes = np.array([len(c['idx']) for c in cluster_set['clusters']])
@@ -818,7 +809,7 @@ class PLSC():
         f, ax
             Figure and axes containing plot.
         """
-        _check_str_arg('which', which,
+        utils._check_str_arg('which', which,
                        ('pct-variance', 'singular-vals'))
         viz.scree(singular_vals=self.model.singular_vals_,
                   which=which,
@@ -889,7 +880,7 @@ class PLSC():
         f, ax
             Figure and axes containing plot.
         """
-        _check_str_arg('which', which,
+        utils._check_str_arg('which', which,
                        ('saliences', 'z-scores', 'auto'))
         if which == 'auto':
             if self.model._boot_done:
@@ -1169,7 +1160,7 @@ class PLSC():
         -------
         None
         """
-        _check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
+        utils._check_str_arg('highlight', highlight, ['peak', 'extent']) # Can't be none here, even though it can be non for the non-spatial plot
         if self.template.datatype == 'surf-stc':
             raise ValueError('Spatial and non-spatial cluster visualizations cannot be shown in the same figure. Call .plot_cluster_nonspatial() and .plot_cluster_spatial() separately.')
         else:
@@ -1342,8 +1333,7 @@ class MCPLSC(PLSC):
         >>> scores = mod.get_marginal_brain_scores(lv_idx=0, margin='time') # Temporal brain scores
         >>> scores = mod.get_marginal_brain_scores(lv_idx=0, margin='freq') # Spectral brain scores
         """
-        _check_str_arg('margin', margin,
-                       ('chan', 'time', 'freq', 'time-freq'))
+        margin = utils._check_margin_names(margin)
         if margin != 'chan':
             if margin == 'time':
                 allowed_datatypes = ('epo', 'tfr', 'surf-stc', 'vol-stc')
@@ -1397,6 +1387,9 @@ class MCPLSC(PLSC):
         scores = self.get_marginal_brain_scores(lv_idx=lv_idx,
                                                 margin=margin,
                                                 average=True)
+        margin = utils._check_margin_names(margin)
+        if margin == 'chan' and self.template.space != 'sensor':
+            raise ValueError('Plotting marginal brain scores across channels is only possible for sensor-space data')
         labels = self.model.design_sal_labels_
         out = viz.plot_marginal_brain_scores(scores=scores,
                                              margin=margin,
@@ -1426,7 +1419,7 @@ class Template():
         self.ndim = None #: ``int``: Number of dimensions in data.
         self.vertices = None #: ``list``: List of vertices copied from stc object, if applicable.
         self.info = None #: :class:`mne.Info`: MNE Info object for sensor-space data, if applicable.
-        _check_str_arg('domain', source_domain,
+        utils._check_str_arg('domain', source_domain,
                        (None, 'time', 'freq', 'time-freq'))
         # Infer datatype
         if isinstance(obj, list):

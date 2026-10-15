@@ -655,107 +655,118 @@ def plot_axial_slices(img, ax):
 
 def plot_marginal_brain_scores(scores, margin, labels, template, grouping, ax=None):
     # Combine labels and scores into one dataframe
-    df = labels.assign(scores=scores)
-    df = df.sort_values(by=['between', 'within'])
+    # df = labels.assign(scores=scores)
     if margin in ['time', 'freq']:
-        if margin == 'time':
-            x = template.times
-            xlabel = 'Time (s)'
-        elif margin == 'freq':
-            x = template.freqs
-            xlabel = 'Frequency (Hz)'
-        if grouping == 'both':
-            # Line plots faceted by between condition and coloured by within condition
-            f, ax = plt.subplots(nrows=df['between'].nunique(),
-                                 sharex=True,
-                                 sharey=True,
-                                 layout='constrained')
-            for idx, (btwn, sub_df) in enumerate(df.groupby('between')):
-                btwn_ax = ax[idx]
-                btwn_ax.set_title(btwn)
-                for _, row in sub_df.iterrows():
-                    btwn_ax.plot(x, row['scores'], label=row['within'])
-            ax[0].legend()
-            f.supxlabel(xlabel)
-            f.supylabel('Brain score')
-        else:
-            # Line plots coloured by condition
-            f, ax = plt.subplots()
-            for _, row in df.iterrows():
-                ax.plot(x, row['scores'], label=row[grouping])
-            ax.legend()
-            ax.set_ylabel('Brain score')
-            ax.set_xlabel(xlabel)
-            # Check for log x scale
-            if check_log_scale(x):
-                ax.set_xscale('log')
-                if margin == 'freq':
-                    add_freq_landmarks(ax.xaxis)
+        out = _plot_marginal_brain_scores_1d(scores, margin, labels, template, grouping, ax)
     elif margin in ['chan', 'time-freq']:
-        vlim = np.abs(np.stack(df['scores'])).max()
-        # Set up axes---separate axis per condition
-        if grouping == 'both':
-            f, ax = plt.subplots(nrows=df['between'].nunique(),
-                                 ncols=df['within'].nunique(),
-                                 sharex=True, sharey=True,
-                                 squeeze=False)
-        else:
-            f, ax = plt.subplots(ncols=df[grouping].nunique(),
-                                 sharex=True, sharey=True,
-                                 squeeze=False)
-        # Plots
-        for idx, row in df.iterrows():
-            curr_ax = ax.flat[idx]
-            if margin == 'chan':
-                from mne.viz import plot_topomap
-                plot_topomap(
-                    data=row['scores'],
-                    pos=template.info,
-                    vlim=(-vlim, vlim),
-                    axes=curr_ax,
-                    show=False)
-            elif margin == 'time-freq':
-                xdata, ydata = get_raster_axis_data(template,
-                                                    xdim='time',
-                                                    ydim='freq')
-                plot_raster(template=template,
-                            xdata=template.times,
-                            ydata=template.freqs,
-                            data=scores[idx],
-                            vlim=(-vlim, vlim),
-                            ax=curr_ax)
-        # Shared colour bar
-        cmap = cm.RdBu_r
-        norm = colors.Normalize(vmin=-vlim, vmax=vlim)
-        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-        cbar = f.colorbar(sm, ax=ax, shrink=0.8)
-        cbar.set_label('Brain score')
-        # Label x and y axes
-        if margin == 'time-freq':
-            f.supxlabel('Time (s)')
-            f.supylabel('Frequency (Hz)')
-            if check_log_scale(template.freqs):
-                for curr_ax in ax[:, 0]:
-                    add_freq_landmarks(curr_ax.yaxis)
-        # Label columns
-        if grouping == 'both':
-            row_labels = df['within'].cat.categories
-        else:
-            row_labels = df[grouping].cat.categories
-        for curr_ax, label in zip(ax[0, :], row_labels):
-            curr_ax.set_title(label)
-        if grouping == 'both':
-            # Label rows
-            for curr_ax, label in zip(ax[:, -1], df['between'].cat.categories):
-                curr_ax.yaxis.set_label_position('right')
-                curr_ax.annotate(label,
-                                 xy=(0, 0.5),
-                                 # xytext=(-curr_ax.yaxis.labelpad - 24, 0),
-                                 xytext=(curr_ax.yaxis.labelpad, 5),
-                                 xycoords=curr_ax.yaxis.label,
-                                 textcoords="offset points",
-                                 fontsize=12, ha="left", va="center")
-    return f, ax
+        out = _plot_marginal_brain_scores_2d(scores, margin, labels, template, grouping, ax)
+    return out
+
+def _plot_marginal_brain_scores_1d(scores, margin, labels, template, grouping, ax=None):
+    # 1-dimensional
+    if margin == 'time':
+        x = template.times
+        xlabel = 'Time (s)'
+    elif margin == 'freq':
+        x = template.freqs
+        xlabel = 'Frequency (Hz)'
+    
+    if grouping == 'both':
+        # Line plots faceted by between condition and coloured by within condition
+        df = labels.copy()
+        df['scores'] = scores
+        f, ax = plt.subplots(nrows=df['between'].nunique(),
+                             sharex=True,
+                             sharey=True,
+                             layout='constrained')
+        for idx, (btwn, sub_df) in enumerate(df.groupby('between')):
+            btwn_ax = ax[idx]
+            btwn_ax.set_title(btwn)
+            for _, row in sub_df.iterrows():
+                btwn_ax.plot(x, row['scores'], label=row['within'])
+        ax[0].legend()
+        f.supxlabel(xlabel)
+        f.supylabel('Brain score')
+    else:
+        # Line plots coloured by condition
+        f, ax = plt.subplots()
+        for score, label in zip(scores, labels[grouping]):
+            ax.plot(x, score, label=label)
+        ax.legend()
+        ax.set_ylabel('Brain score')
+        ax.set_xlabel(xlabel)
+        # Check for log x scale
+        if check_log_scale(x):
+            ax.set_xscale('log')
+            if margin == 'freq':
+                add_freq_landmarks(ax.xaxis)
+
+def _plot_marginal_brain_scores_2d(scores, margin, labels, template, grouping, ax=None):
+    df = labels.copy()
+    df['scores'] = scores
+    vlim = np.abs(np.stack(df['scores'])).max()
+    # Set up axes---separate axis per condition
+    if grouping == 'both':
+        f, ax = plt.subplots(nrows=df['between'].nunique(),
+                             ncols=df['within'].nunique(),
+                             sharex=True, sharey=True,
+                             squeeze=False)
+    else:
+        f, ax = plt.subplots(ncols=df[grouping].nunique(),
+                             sharex=True, sharey=True,
+                             squeeze=False)
+    # Plots
+    for idx, row in df.iterrows():
+        curr_ax = ax.flat[idx]
+        if margin == 'chan':
+            from mne.viz import plot_topomap
+            plot_topomap(
+                data=row['scores'],
+                pos=template.info,
+                vlim=(-vlim, vlim),
+                axes=curr_ax,
+                show=False)
+        elif margin == 'time-freq':
+            xdata, ydata = get_raster_axis_data(template,
+                                                xdim='time',
+                                                ydim='freq')
+            plot_raster(template=template,
+                        xdata=template.times,
+                        ydata=template.freqs,
+                        data=scores[idx],
+                        vlim=(-vlim, vlim),
+                        ax=curr_ax)
+    # Shared colour bar
+    cmap = cm.RdBu_r
+    norm = colors.Normalize(vmin=-vlim, vmax=vlim)
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    cbar = f.colorbar(sm, ax=ax, shrink=0.8)
+    cbar.set_label('Brain score')
+    # Label x and y axes
+    if margin == 'time-freq':
+        f.supxlabel('Time (s)')
+        f.supylabel('Frequency (Hz)')
+        if check_log_scale(template.freqs):
+            for curr_ax in ax[:, 0]:
+                add_freq_landmarks(curr_ax.yaxis)
+    # Label columns
+    if grouping == 'both':
+        row_labels = df['within'].unique()
+    else:
+        row_labels = df[grouping].unique()
+    for curr_ax, label in zip(ax[0, :], row_labels):
+        curr_ax.set_title(label)
+    if grouping == 'both':
+        # Label rows
+        for curr_ax, label in zip(ax[:, -1], df['between'].unique()):
+            curr_ax.yaxis.set_label_position('right')
+            curr_ax.annotate(label,
+                             xy=(0, 0.5),
+                             # xytext=(-curr_ax.yaxis.labelpad - 24, 0),
+                             xytext=(curr_ax.yaxis.labelpad, 5),
+                             xycoords=curr_ax.yaxis.label,
+                             textcoords="offset points",
+                             fontsize=12, ha="left", va="center")
 
 def plot_cluster_extent(xdata, cluster, ax, ydata=None):
     in_extent, lim_pairs = utils.get_cluster_extent(cluster['mask'])

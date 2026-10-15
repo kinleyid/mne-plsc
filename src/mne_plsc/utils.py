@@ -4,6 +4,15 @@ import pandas as pd
 
 from pdb import set_trace
 
+class BadStrArgError(Exception):
+    def __init__(self, argname, provided, allowed):
+        self.message = '%s is not a valid value for "%s". Must be one of %s' % (provided, argname, allowed)
+        super().__init__(self.message)
+
+def _check_str_arg(argname, provided, allowed):
+    if provided not in allowed:
+        raise BadStrArgError(argname, provided, allowed)
+
 def get_epoch_labels(epochs):
     """
     Get a list of labels corresponding to each epoch for a set of epoched data.
@@ -70,7 +79,7 @@ def average_epochs_by_label(epochs_list, between=None, labels=None):
                 row['between'] = between[ptpt_idx]
             data_list.append(avg)
             rows.append(row)
-    design = pd.DataFrame.from_records(rows)
+    design = pd.DataFrame(rows).astype('category')
     return data_list, design
 
 def average_epochs_by_metadata(epochs_list, columns, between=None):
@@ -164,13 +173,15 @@ def get_datamat(data, template):
             datamat = np.stack([epoch.flatten() for epoch in data.get_data()])
     return datamat, single_or_multi
 
-def get_grouping(between, within):
+def get_grouping(labels):
     # Figure out if data is grouped by a between-subjects
     # variable, a within-subjects variable, both, or neither
-    if between is None and within is None:
+    between = 'between' in labels
+    within = 'within' in labels
+    if not between and not within:
         grouping = 'neither'
-    elif between is None or within is None:
-        grouping = 'within' if between is None else 'between'
+    elif not between or not within:
+        grouping = 'within' if not between else 'between'
     else:
         grouping = 'both'
     return grouping
@@ -427,3 +438,18 @@ def standardize_input(data, obs_level, design_matrix, between, within, participa
         out += (covariate_table,)
     
     return out
+
+def _check_margin_names(margin):
+    _check_str_arg('margin', margin,
+                   ('chan', 'channel',
+                    'time',
+                    'freq', 'frequency', 
+                    'time-freq', 'time-frequency'))
+    # Use short forms
+    if margin == 'channel':
+        margin = 'chan'
+    elif margin == 'frequency':
+        margin = 'freq'
+    elif margin == 'time-frequency':
+        margin = 'time-freq'
+    return margin
