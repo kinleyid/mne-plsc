@@ -1350,12 +1350,14 @@ class MCPLSC(PLSC):
         loadings = self.model.data_sals_[:, lv_idx]
         hadamards = self.model.data_ * loadings
         if average:
-            hadamards = pyplsc.utils.stratified_average(self.model.data_,
-                                         self.model.label_mat_,
-                                         self.model.stratify_,
-                                         self.model.effects_)
+            hadamards = pyplsc.utils.stratified_average(hadamards, # self.model.data_,
+                                                        self.model.label_mat_,
+                                                        self.model.stratify_,
+                                                        self.model.effects_)
+            """
             if not self.model._include_intercept:
                 hadamards = pyplsc.utils.mean_center(hadamards)
+            """
         # Reshape
         hadamards = [h.reshape(self.template.shape) for h in hadamards]
         # Identify axes to average over

@@ -9,4 +9,4 @@ Below are the functions used to fit models.
 
    fit_beh
    fit_mc
-   fit_within_beh
+   fit_nrm
