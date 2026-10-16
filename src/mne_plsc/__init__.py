@@ -80,7 +80,7 @@ def fit_beh(data,
               labels=labels,
               stratify=stratify,
               covariates=covariates)
-    grouping = utils.get_grouping(between, within)
+    grouping = utils.get_grouping(labels)
     return PLSC(template, model, grouping)
 
 def fit_mc(data,
@@ -217,7 +217,7 @@ def fit_nrm(data,
                        random_state=random_state,
                        intercept=intercept)
     model.fit(datamat, labels, stratify, contrasts)
-    grouping = utils.get_grouping(between, within)
+    grouping = utils.get_grouping(labels)
     return NRM(template, model, grouping)
 
 class PLSC():
